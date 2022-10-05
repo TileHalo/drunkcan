@@ -1,0 +1,6 @@
+*.o
+drunkcan
+drunkcan-test
+libdrunkcan.a
+libdrunkcan.so
+**/*.o
