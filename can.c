@@ -1,3 +1,5 @@
+/* See LICENSE file for license and copyright details */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>

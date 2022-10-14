@@ -1,5 +1,7 @@
-#ifndef MSGPACK_DRUNK_H
-#define MSGPACK_DRUNK_H
+/* See LICENSE file for license and copyright details */
+
+#ifndef DRUNKCAN_MSGPACK_H
+#define DRUNKCAN_MSGPACK_H
 
 enum msgpack_type {
 	MSGPACK_NIL = 0xC0,
