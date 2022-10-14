@@ -1,5 +1,7 @@
-#ifndef _UCAN_H
-#define _UCAN_H
+/* See LICENSE file for license and copyright details */
+
+#ifndef DRUNKCAN_CAN_H
+#define DRUNKCAN_CAN_H
 
 struct can_queue {
 	int size;

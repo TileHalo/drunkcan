@@ -1,3 +1,5 @@
+/* See LICENSE file for license and copyright details */
+
 #ifndef DRUNKCAN_PROTOCOL_H
 #define DRUNKCAN_PROTOCOL_H
 enum protocol{

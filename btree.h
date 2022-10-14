@@ -1,5 +1,7 @@
-#ifndef BINTREE_H
-#define BINTREE_H
+/* See LICENSE file for license and copyright details */
+
+#ifndef DRUNKCAN_BINTREE_H
+#define DRUNKCAN_BINTREE_H
 
 #define UNIX_NAMESIZE 109
 

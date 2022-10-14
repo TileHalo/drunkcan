@@ -1,7 +1,9 @@
-#ifndef CANOPEN_H
-#define CANOPEN_H
+/* See LICENSE file for license and copyright details */
 
-#define CANOPEN_BITMASK 0x07F;
+#ifndef DRUNKCAN_CANOPEN_H
+#define DRUNKCAN_CANOPEN_H
+
+#define CANOPEN_BITMASK 127;
 #define CANOPEN_EFF_BITMASK 0x07FFFFFF;
 
 enum canopen_command {
