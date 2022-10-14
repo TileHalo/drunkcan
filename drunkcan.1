@@ -1,0 +1,33 @@
+.TH DRUNKCAN 1 drunkCAN
+.SH NAME
+drunkcan \- a multiprotocol CAN device manager
+.SH SYNOPSIS
+drunkcan [OPTIONS]
+.SH DESCRIPTION
+Drunkcan utilizes SocketCAN sockets and reads the traffic in the socket and
+distributes the messages into Unix sockets defined by the node ID used protocol
+uses and manages the network according to the protocol used and supplied
+options
+.SH OPTIONS
+.TP
+.BR \-h "
+Prints the help text of the command.
+.TP
+.BR \-s " SOCKET "
+Specify the SocketCAN socket used. Default value: can0.
+.TP
+.BR \-p " PROTOCOL "
+Specify the protocol that is used in the socket. Default value: canopen.
+Currently supports only canopen.
+.TP
+.BR \-x " PREFIX "
+Set the prefix to the outputted sockets. Each socket can be found in
+[DIRECTORY]/[PREFIX][SOCKET]_[PROTOCOL]. Default value: .
+.TP
+.BR \-d " DIRECTORY "
+Set the directory for the outputted sockets.
+.SH BUGS
+This program is heavily under development and does not implement everything
+described in this document.
+.SH AUTHOR
+Leo Lahti (leo.lahti1@gmail.com)
