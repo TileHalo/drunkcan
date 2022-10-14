@@ -6,7 +6,7 @@ include config.mk
 
 all: $(NAME)
 
-SRC = drunkcan.c util.c btree.c
+SRC = drunkcan.c util.c btree.c protocol.c canopen.c
 OBJ = ${SRC:.c=.o}
 
 .c.o:
@@ -41,7 +41,7 @@ dist:
 	rm -rf "$(NAME)-$(VERSION)"
 
 install: all
-	mkdpr -p "$(DESTDIR)$(PREFIX)/bin"
+	mkdir -p "$(DESTDIR)$(PREFIX)/bin"
 	cp -f $(NAME) "$(DESTDIR)$(PREFIX)/bin"
 	chmod 755 "$(DESTDIR)$(PREFIX)/bin/$(NAME)"
 	mkdir -p "$(DESTDIR)$(MANPREFIX)/man1"

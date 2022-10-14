@@ -32,4 +32,6 @@ struct canopen_frame {
 
 };
 
+struct protocol_conf canopen_protocol();
+
 #endif

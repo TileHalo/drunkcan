@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
+#include "protocol.h"
 #include "util.h"
 #include "btree.h"
 #include "canopen.h"
@@ -28,13 +29,10 @@
 #define UNIX_NAMESIZE 109
 #define TBUF 4
 
-enum protocol{
-	CANOPEN = 1,
-};
 
 struct drunk_config {
 	char prefix[UNIX_NAMESIZE];
-	enum protocol prot;
+	struct protocol_conf prot;
 };
 
 
@@ -54,6 +52,8 @@ static int process_in(int fd, int can, struct btree *tree, int efd);
 static int process_hup(int fd, struct btree *tree, int efd);
 static int process_can(int fd, struct btree *tree, int efd);
 static int process_sock(int fd, int can, struct btree *tree, int efd);
+
+static void print_help(void);
 
 static int
 init_sigfd(void)
@@ -208,7 +208,7 @@ event_loop(int cansock, int efd, struct drunk_config conf)
 			} else if (ev.events & (EPOLLRDHUP | EPOLLHUP)) {
 				process_hup(ev.data.fd, &tree, efd);
 			} else {
-				warn("Event that should not happen: %d\n",
+				warn("Event that should not happen: %x\n",
 					ev.events);
 			}
 		}
@@ -306,6 +306,22 @@ process_sock(int fd, int can, struct btree *tree, int efd)
 	return fd;
 }
 
+
+static void
+print_help(void)
+{
+fprintf(stderr,
+	"This is the help for Drunkcan. Please consult man page for detailed "
+	"information.\n"
+	"Options are:\n"
+	"    -h: print this help text\n"
+	"    -s SOCKET: define the SocketCAN socket used. Default: can0\n"
+	"    -p PROTOCOL: define the protocol used. Default: canopen\n"
+	"    -x PREFIX: define the prefix used. Default: \n"
+	"    -d DIRECTORY: define the directory used. Default: /tmp/ \n"
+	);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -317,26 +333,36 @@ main(int argc, char **argv)
 	strcpy(sock, "can0");
 	memset(conf.prefix, 0, UNIX_NAMESIZE);
 	strcpy(conf.prefix, "/tmp/");
-	conf.prot = CANOPEN;
+	conf.prot = canopen_protocol();
 	memset(prefix, 0, 11);
 
-	while ((opt = getopt(argc, argv, "d:s:h")) != -1) {
+	while ((opt = getopt(argc, argv, "d:s:p:x:h")) != -1) {
 		switch(opt) {
 		case 's':
+			strncpy(sock, optarg, IF_NAMESIZE);
+			break;
+		case 'p': /* Protocol */
 			strncpy(sock, optarg, IF_NAMESIZE);
 			break;
 		case 'd':
 			strcpy(conf.prefix, optarg);
 			break;
+		case 'x': /* Prefix */
+			strncpy(prefix, optarg, 10);
+			break;
+		case 'h':
+			print_help();
+			return 0;
 		case '?':
 			printf("unknown option: %c\n", opt);
-			break;
+			print_help();
+			return EXIT_FAILURE;
 		}
 	}
 
 	strcat(conf.prefix, prefix);
 	strcat(conf.prefix, sock);
-	switch (conf.prot) {
+	switch (conf.prot.protocol) {
 	case CANOPEN:
 		strcat(conf.prefix, "_CANopen");
 		break;

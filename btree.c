@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <string.h>
 #include "util.h"
+#include "protocol.h"
 #include "btree.h"
 
 

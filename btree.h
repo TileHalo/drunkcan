@@ -23,6 +23,7 @@ struct btree {
 	int size; /* Max 29 bits */
 	int root;
 	char prefix[UNIX_NAMESIZE]; /* Prefix for all fd names */
+	struct protocol_conf protocol;
 	struct btree_node *tree; /* This is list by id */
 };
 
