@@ -273,13 +273,14 @@ process_can(int fd, struct btree *tree, int efd)
 		return 1;
 	}
 
-	fprintf(stderr, "id: %X dlc: %X data:", fr.can_id, fr.can_dlc);
+	fprintf(stderr, "id: %d dlc: %X data:",
+		fr.can_id & tree->protocol.idmask, fr.can_dlc);
 	for (i = 0; i < fr.can_dlc; i++) {
 		fprintf(stderr, "%X", fr.data[i]);
 	}
 	fprintf(stderr, "\n");
 
-	id = fr.can_id & CANOPEN_BITMASK;
+	id = fr.can_id & tree->protocol.idmask;
 
 	if ((node = btree_search_id(*tree, id))) {
 		for (i = 0; i < (int)node->clients.i; i++) {
@@ -362,7 +363,7 @@ main(int argc, char **argv)
 
 	strcat(conf.prefix, prefix);
 	strcat(conf.prefix, sock);
-	switch (conf.prot.protocol) {
+	switch (conf.prot.protocol) { /* TODO: Handle the getopt */
 	case CANOPEN:
 		strcat(conf.prefix, "_CANopen");
 		break;
