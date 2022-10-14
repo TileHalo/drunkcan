@@ -8,15 +8,15 @@ PREFIX = /usr/local
 MANPREFIX = $(PREFIX)/share/man
 
 # flags
-_CPPFLAGS = -D_DEFAULT_SOURCE
-_CFLAGS = -std=c99 -pedantic -Wall -Wextra
+_CPPFLAGS = -D_DEFAULT_SOURCE -g
+_CFLAGS = -std=gnu11 -pedantic -Wall -Wextra
 _LDFLAGS =-I/usr/include
-_LDLIBS = 
+_LDLIBS =
 ifneq "$(and $(TST),$(DBUG))" ""
 CPPFLAGS = $(_CPPFLAGS)
 CFLAGS = $(_CFLAGS) -0s
 LDFLAGS = $(_LDFLAGS) -s
-LDLIBS = $(_LDLIBS)
+LDLIBS = $(_LDLIBS) -g
 else ifdef TST
 CPPFLAGS = $(_CPPFLAGS) -g
 LDLIBS = $(_LDLIBS) -lcheck

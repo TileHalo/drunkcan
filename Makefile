@@ -4,22 +4,19 @@
 
 include config.mk
 
-REQ = util
-RC =\
-
 all: $(NAME)
 
-$(RC:=.o): config.mk $(REQ:=.h)
-$(NAME).o: $(NAME).c config.h
+SRC = drunkcan.c util.c btree.c
+OBJ = ${SRC:.c=.o}
 
 .c.o:
-	$(CC) -o $@ -c $(CPPFLAGS) $(CFLAGS) $<
+	$(CC) -c -g $(CFLAGS) $<
 
 config.h:
 	cp config.def.h $@
 
-$(NAME): $(NAME).o $(RC:=.o) $(REQ:=.o)
-	$(LD) -o $@ $(LDFLAGS) $< $(LDLIBS)
+$(NAME): $(OBJ)
+	$(LD) -o $@ $(OBJ) $(LDFLAGS) $(LDLIBS)
 
 ifndef TEST
 $(NAME)-test:
@@ -32,7 +29,7 @@ test: $(NAME)-test
 	@./$(NAME)-test
 
 clean:
-	@rm -rf $(NAME) $(NAME)-test $(RC:=.o) $(REQ:=.o)
+	@rm -rf $(NAME) $(NAME)-test $(OBJ)
 
 dist:
 	rm -rf "$(NAME)-$(VERSION)"
