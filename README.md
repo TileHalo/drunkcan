@@ -25,3 +25,8 @@ make install
 ## Usage
 To use just run `drunkcan` in terminal. For documentation please either run
 `drunkcan -h` or run `man drunkcan`.
+
+
+## Contributing
+Please consult the file CONTRIBUTING.md. This project is a student project for
+Aalto-university course ELEC-C5070.

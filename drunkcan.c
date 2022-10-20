@@ -94,9 +94,14 @@ init_can(const char *sock)
 		e = errno;
 		die("Error while initializing CAN-socket: %s", strerror(e));
 	}
+	memset(&addr, 0, sizeof(struct sockaddr_can));
 
 	strcpy(ifr.ifr_name, sock);
-	ioctl(s, SIOCGIFINDEX, &ifr);
+	if (ioctl(s, SIOCGIFINDEX, &ifr) < 0) {
+		int e;
+		e = errno;
+		die("ioctl error on socket %s: %s", sock, strerror(e));
+	}
 
 	addr.can_family = AF_CAN;
 	addr.can_ifindex = ifr.ifr_ifindex;
@@ -104,7 +109,7 @@ init_can(const char *sock)
 	if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
 		int e;
 		e = errno;
-		die("Error while binding CAN-socket: %s", strerror(e));
+		die("Error while binding CAN-socket %s: %s", sock, strerror(e));
 	}
 
 	return s;
@@ -273,13 +278,6 @@ process_can(int fd, struct btree *tree, int efd)
 		die("can raw socket read: %s", strerror(e));
 		return 1;
 	}
-
-	fprintf(stderr, "id: %d dlc: %X data:",
-		fr.can_id & tree->protocol.idmask, fr.can_dlc);
-	for (i = 0; i < fr.can_dlc; i++) {
-		fprintf(stderr, "%X", fr.data[i]);
-	}
-	fprintf(stderr, "\n");
 
 	id = fr.can_id & tree->protocol.idmask;
 
