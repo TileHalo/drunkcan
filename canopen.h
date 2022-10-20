@@ -4,7 +4,7 @@
 #define DRUNKCAN_CANOPEN_H
 
 #define CANOPEN_BITMASK 127;
-#define CANOPEN_EFF_BITMASK 0x07FFFFFF;
+#define CANOPEN_EFF_BITMASK 134217727;
 
 enum canopen_command {
 	CANOPEN_NMT = 0x000,
