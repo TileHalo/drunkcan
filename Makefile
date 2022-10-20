@@ -4,48 +4,42 @@
 include config.mk
 
 all: $(NAME)
+.PHONY: test debug clean dist install all
 
-SRC = util.c btree.c protocol.c canopen.c
+SEDREP := sed -e 's/^\(.*\)\.o:/\1.d \1.o:/'
+
+SRC = src/util.c src/btree.c src/protocol.c src/canopen.c
 ifeq ($(TEST),)
-	SRC += drunkcan.c
+	SRC += src/drunkcan.c
 else
 	SRC += test/test.c
 endif
 OBJ = ${SRC:.c=.o}
 
-%.o: %.c
-	$(CC) -c $(CFLAGS) $<
+include $(OBJ:.o=.d)
 
-test/%.o: test/%.c
+# Make the dependencies and do not print the recipe, only the result
+%.d: %.c
+	@$(CC) -MM -MG $(CFLAGS) $*.c | sed -e "s/^$(@F)/$(@D)\//" | $(SEDREP) > $@
+	@awk NF=NF RS= OFS=' ' $@ | awk -F '\\' '{print $$1, $$2}' | sed 's/  */ /g'
+
+.c.o:
 	$(CC) -c $(CFLAGS) $< -o $@
+
+clean:
+	rm -rf */*.d */*.o $(NAME) $(NAME)-debug $(NAME)-test
 
 $(NAME): $(OBJ)
 	$(LD) -o $@ $(OBJ) $(LDFLAGS) $(LDLIBS)
 
-debug:
-	DEBUG=1 $(MAKE)
+debug: clean
+	@DEBUG=1 $(MAKE)
 
-ifeq ($(TEST),)
-test:
-	TEST=1 $(MAKE)
-else
-test: $(NAME)
-	./$(NAME)
-endif
+test: clean
+	@TEST=1 $(MAKE)
 
-ifeq ($(TEST)$(DEBUG),)
-.PHONY: test debug clean dist install
-clean:
-	@rm -rf $(NAME) $(NAME)-test $(OBJ)
-
-dist:
-	rm -rf "$(NAME)-$(VERSION)"
-	mkdir -p "$(NAME)-$(VERSION)/components"
-	cp -R LICENSE Makefile README config.mk config.def.h \
-	      $(NAME).c $(RC:=.c) $(REQ:=.c) $(REQ:=.h) \
-	      $(NAME).1 "$(NAME)-$(VERSION)"
-	tar -cf - "$(NAME)-$(VERSION)" | gzip -c > "$(NAME)-$(VERSION).tar.gz"
-	rm -rf "$(NAME)-$(VERSION)"
+testsuite: test
+	./$(NAME)-test
 
 install: all
 	mkdir -p "$(DESTDIR)$(PREFIX)/bin"
@@ -54,4 +48,3 @@ install: all
 	mkdir -p "$(DESTDIR)$(MANPREFIX)/man1"
 	cp -f $(NAME).1 "$(DESTDIR)$(MANPREFIX)/man1"
 	chmod 644 "$(DESTDIR)$(MANPREFIX)/man1/$(NAME).1"
-endif

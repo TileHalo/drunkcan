@@ -1,6 +1,9 @@
 *.o
+*.d
 drunkcan
 drunkcan-test
+drunkcan-debug
 libdrunkcan.a
 libdrunkcan.so
 **/*.o
+**/*.d
