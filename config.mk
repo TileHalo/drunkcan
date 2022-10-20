@@ -7,24 +7,21 @@ PREFIX = /usr/local
 MANPREFIX = $(PREFIX)/share/man
 
 # flags
-CFLAGS = -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L -std=c99  -pedantic -Wall -Wextra
+CPPFLAGS =
+CFLAGS = -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L -std=c99 -pedantic -Wall -Wextra
 LDFLAGS =-I/usr/include
 LDLIBS =
 
-ifdef $(DEBUG)
+ifeq ($(TEST)$(DEBUG),)
+	CFLAGS += -O2
+else ifeq ($(TEST),)
 	NAME = drunkcan-debug
 	CFLAGS += -g
-endif
-
-ifdef $(TEST)
-	NAME = drunkcan-test
+else
 	CFLAGS += -g
 	LDLIBS += -lcheck
+	NAME = drunkcan-test
 endif
 
-ifeq ($(TEST)$(DEBUG),)
-	CFLAGS += -Os
-endif
-
-CC = gcc
-LD = gcc
+CC = cc
+LD = cc
