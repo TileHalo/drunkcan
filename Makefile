@@ -14,7 +14,7 @@ SRC = src/util.c src/btree.c src/protocol.c src/canopen.c src/drunkcan.c \
 OBJ = ${SRC:.c=.o}
 TEST = test/btree test/intarray
 
-$(TEST): CFLAGS+=-g
+$(TEST): CFLAGS+=-g -DUNIT_TESTING
 $(TEST): % : %.o
 $(TEST): LDLIBS+=-lcmocka
 $(TEST): $(OBJ)
