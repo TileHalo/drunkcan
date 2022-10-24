@@ -18,10 +18,10 @@
 static int btree_setup(void **state);
 static int btree_teardown(void **state);
 static void btree_insert_test(void **state);
-// static void btree_search_fd_test(void **state);
-// static void btree_search_id_test(void **state);
-// static void btree_remove_fd_test(void **state);
-// static void btree_remove_id_test(void **state);
+static void btree_search_fd_test(void **state);
+static void btree_search_id_test(void **state);
+static void btree_remove_fd_test(void **state);
+static void btree_remove_id_test(void **state);
 
 int __wrap_remove(const char *__filename);
 
@@ -64,6 +64,7 @@ btree_insert_test(void **state)
 {
 	BinTree tree;
 
+
 	tree = *state;
 
 	/* Correct root */
@@ -73,42 +74,71 @@ btree_insert_test(void **state)
 
 }
 
-// static void
-// btree_search_fd_test(void **state)
-// {
-// 	BinTree tree;
-// 	(void) tree;
+static void
+btree_search_fd_test(void **state)
+{
+	BinTree tree;
+	Node n;
+	int i;
 
-// 	tree = *state;
+	tree = *state;
 
-// }
+	for (i = 0; i < 11; i++) {
+		n = btree_search_fd(tree, fds[i]);
+		assert_non_null(n);
+		assert_int_equal(node_id(n), ids[i]);
+		assert_int_equal(node_fd(n), fds[i]);
+	}
 
-// static void
-// btree_search_id_test(void **state)
-// {
-// 	BinTree tree;
+	assert_null(btree_search_fd(tree, 0));
+	assert_null(btree_search_fd(tree, -5));
+	assert_null(btree_search_fd(tree, 1000));
+	assert_null(btree_search_fd(tree, 2));
+	assert_null(btree_search_fd(tree, 5));
+}
 
-// 	tree = *state;
+static void
+btree_search_id_test(void **state)
+{
+	BinTree tree;
+	Node n;
+	int i;
 
-// }
+	tree = *state;
 
-// static void
-// btree_remove_fd_test(void **state)
-// {
-// 	BinTree tree;
+	for (i = 0; i < 11; i++) {
+		n = btree_search_id(tree, ids[i]);
+		assert_non_null(n);
+		assert_int_equal(node_id(n), ids[i]);
+		assert_int_equal(node_fd(n), fds[i]);
+	}
 
-// 	tree = *state;
+	assert_null(btree_search_id(tree, 0));
+	assert_null(btree_search_id(tree, -5));
+	assert_null(btree_search_id(tree, 1000));
+	assert_null(btree_search_id(tree, 2));
+	assert_null(btree_search_id(tree, 5));
 
-// }
+}
 
-// static void
-// btree_remove_id_test(void **state)
-// {
-// 	BinTree tree;
+static void
+btree_remove_fd_test(void **state)
+{
+	BinTree tree;
 
-// 	tree = *state;
+	tree = *state;
 
-// }
+}
+
+static void
+btree_remove_id_test(void **state)
+{
+	BinTree tree;
+
+	tree = *state;
+
+}
+
 
 int
 __wrap_remove(const char *__filename)
@@ -125,14 +155,14 @@ main(void)
 	const struct CMUnitTest btree_tests[] = {
 		cmocka_unit_test_setup_teardown(btree_insert_test,
 						btree_setup, btree_teardown),
-		// cmocka_unit_test_setup_teardown(btree_insert_test,
-		// 				btree_setup, btree_teardown),
-		// cmocka_unit_test_setup_teardown(btree_insert_test,
-		// 				btree_setup, btree_teardown),
-		// cmocka_unit_test_setup_teardown(btree_insert_test,
-		// 				btree_setup, btree_teardown),
-		// cmocka_unit_test_setup_teardown(btree_insert_test,
-		// 				btree_setup, btree_teardown),
+		cmocka_unit_test_setup_teardown(btree_search_fd_test,
+						btree_setup, btree_teardown),
+		cmocka_unit_test_setup_teardown(btree_search_id_test,
+						btree_setup, btree_teardown),
+		cmocka_unit_test_setup_teardown(btree_remove_fd_test,
+						btree_setup, btree_teardown),
+		cmocka_unit_test_setup_teardown(btree_remove_id_test,
+						btree_setup, btree_teardown),
 	};
 
 	btree = cmocka_run_group_tests_name("Btree ID tests",
