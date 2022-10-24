@@ -3,6 +3,7 @@
 drunkcan
 drunkcan-test
 drunkcan-debug
+compile_commands.json
 libdrunkcan.a
 libdrunkcan.so
 **/*.o

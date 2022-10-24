@@ -1,4 +1,4 @@
-# See LICS file for license details
+# See LICENSE file for license details
 VERSION = 0.1
 
 NAME = drunkcan
@@ -9,18 +9,17 @@ MANPREFIX = $(PREFIX)/share/man
 # flags
 CPPFLAGS =
 CFLAGS = -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L -std=c99 -pedantic -Wall -Wextra
-LDFLAGS =-I/usr/include
+LDFLAGS =
 LDLIBS =
 
-ifeq ($(TEST)$(DEBUG),)
-	CFLAGS += -O2
-else ifeq ($(TEST),)
-	NAME = drunkcan-debug
-	CFLAGS += -g
+CHECKTOOL = valgrind
+CHECKFLAGS = --leak-check=full --track-origins=yes -s
+
+ifeq ($(DEBUG),)
+	# CFLAGS += -O2
 else
-	CFLAGS += -g
-	LDLIBS += -lcheck
-	NAME = drunkcan-test
+	NAME = drunkcan-debug
+	CFLAGS += -g -DTEST
 endif
 
 CC = cc
