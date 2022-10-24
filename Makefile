@@ -2,21 +2,28 @@
 .POSIX:
 
 include config.mk
+include test.mk
 
 all: $(NAME)
-.PHONY: test debug clean dist install all
+.PHONY: test debug clean dist install all softclean
 
 SEDREP := sed -e 's/^\(.*\)\.o:/\1.d \1.o:/'
 
-SRC = src/util.c src/btree.c src/protocol.c src/canopen.c
-ifeq ($(TEST),)
-	SRC += src/drunkcan.c
-else
-	SRC += test/test.c
-endif
+SRC = src/util.c src/btree.c src/protocol.c src/canopen.c src/drunkcan.c \
+      src/intarray.c
 OBJ = ${SRC:.c=.o}
+TEST = test/btree test/intarray
+
+$(TEST): CFLAGS+=-g
+$(TEST): % : %.o
+$(TEST): LDLIBS+=-lcmocka
+$(TEST): $(OBJ)
+test/btree: LDFLAGS+=-Wl,--wrap=remove
 
 include $(OBJ:.o=.d)
+include src/main.d
+include $(TESTOBJ:.o=.d)
+$(NAME): src/main.o $(OBJ)
 
 # Make the dependencies and do not print the recipe, only the result
 %.d: %.c
@@ -26,20 +33,23 @@ include $(OBJ:.o=.d)
 .c.o:
 	$(CC) -c $(CFLAGS) $< -o $@
 
-clean:
-	rm -rf */*.d */*.o $(NAME) $(NAME)-debug $(NAME)-test
+clean: softclean
+	rm -rf */*.d
 
-$(NAME): $(OBJ)
-	$(LD) -o $@ $(OBJ) $(LDFLAGS) $(LDLIBS)
+softclean:
+	rm -rf */*.o $(NAME) $(NAME)-debug $(TEST)
 
-debug: clean
+$(NAME) $(TEST):
+	$(LD) -o $@ $^ $(LDFLAGS) $(LDLIBS)
+
+debug: softclean
 	@DEBUG=1 $(MAKE)
 
-test: clean
-	@TEST=1 $(MAKE)
+test: $(TEST)
+	$(patsubst %,./%;,$^)
 
-testsuite: test
-	./$(NAME)-test
+testsuite: $(TEST)
+	$(patsubst %,$(CHECKTOOL) $(CHECKFLAGS) ./%;,$^)
 
 install: all
 	mkdir -p "$(DESTDIR)$(PREFIX)/bin"
