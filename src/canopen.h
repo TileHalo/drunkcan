@@ -3,8 +3,6 @@
 #ifndef DRUNKCAN_CANOPEN_H
 #define DRUNKCAN_CANOPEN_H
 
-#define CANOPEN_BITMASK 127;
-#define CANOPEN_EFF_BITMASK 134217727;
 
 enum canopen_command {
 	CANOPEN_NMT = 0x000,
@@ -34,6 +32,6 @@ struct canopen_frame {
 
 };
 
-struct protocol_conf canopen_protocol();
+struct protocol_conf canopen_protocol(void);
 
 #endif

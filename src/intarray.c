@@ -3,24 +3,35 @@
 
 #include "intarray.h"
 
-struct int_array
+struct int_array {
+	unsigned int size;
+	unsigned int i;
+	int *data;
+};
+
+IntArray
 int_array_init(int size)
 {
-	struct int_array arr;
+	IntArray arr;
 
-	arr.size = size;
-	arr.i = 0;
-
-	if (!(arr.data = malloc(sizeof(int) * arr.size))) {
-		arr.size = 0;
+	arr = malloc(sizeof(struct int_array));
+	if (!arr) {
 		return arr;
+	}
+	arr->size = size;
+	arr->i = 0;
+
+	if (!(arr->data = malloc(sizeof(int) * arr->size))) {
+		arr->size = 0;
+		free(arr);
+		return NULL;
 	}
 
 	return arr;
 }
 
 int *
-int_array_push(struct int_array *arr, int data)
+int_array_push(IntArray arr, int data)
 {
 	if (arr->i == arr->size) {
 		arr->size *= 2;
@@ -35,11 +46,11 @@ int_array_push(struct int_array *arr, int data)
 
 }
 int
-int_array_search(const struct int_array arr, int data)
+int_array_search(const IntArray arr, int data)
 {
 	int i;
-	for (i = 0; (unsigned int)i < arr.i; i++) {
-		if (arr.data[i] == data) {
+	for (i = 0; (unsigned int)i < arr->i; i++) {
+		if (arr->data[i] == data) {
 			return i;
 		}
 	}
@@ -47,7 +58,7 @@ int_array_search(const struct int_array arr, int data)
 }
 
 int
-int_array_remove(struct int_array *arr, int data)
+int_array_remove(IntArray arr, int data)
 {
 	unsigned int i;
 	for (i = 0; i < arr->i; i++) {
@@ -62,8 +73,24 @@ int_array_remove(struct int_array *arr, int data)
 	return -1;
 }
 
-void
-int_array_destroy(struct int_array arr)
+int *
+int_array_at(const IntArray arr, int id)
 {
-	free(arr.data);
+	if ((unsigned int)id > arr->i) {
+		return NULL;
+	}
+
+	return &arr->data[id];
+}
+
+int int_array_len(const IntArray arr)
+{
+	return arr->i;
+}
+
+void
+int_array_destroy(IntArray arr)
+{
+	free(arr->data);
+	free(arr);
 }

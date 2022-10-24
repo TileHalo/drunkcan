@@ -5,29 +5,25 @@
 #define UNIX_NAMESIZE 109
 
 /* Binary tree nodes that can search with both fd and id */
-struct btree_node {
-	int id; /* CANopen/etc node id. Max is 29 bits */
-	int fd; /* epoll listen fd */
-	struct int_array clients; /* epoll client fds */
-	struct btree_node *idl, *idr;
-	struct btree_node *fdl, *fdr;
-};
+typedef struct btree_node *Node;
+typedef struct btree *BinTree;
+// typedef struct int_array IntArray;
 
-/* Binary tree that can search with both fd and id */
-struct btree {
-	int size; /* Max 29 bits */
-	int root;
-	char prefix[UNIX_NAMESIZE]; /* Prefix for all fd names */
-	struct protocol_conf protocol;
-	struct btree_node *tree; /* This is list by id */
-};
+BinTree btree_init(int size, const char *prefix);
+Node btree_insert(BinTree tree, int id, int fd);
+Node btree_root(const BinTree tree);
+Node btree_search_fd(const BinTree tree, int fd);
+Node btree_search_id(const BinTree tree, int id);
+Node btree_remove_fd(BinTree tree, int fd);
+Node btree_remove_id(BinTree tree, int id);
+void btree_set_protocol(BinTree tree, struct protocol_conf conf);
+void btree_destroy(BinTree tree);
+void btree_apply(BinTree tree, void (*func)(Node node, void *dat), void *dat);
+struct protocol_conf *tree_protocol(BinTree tree);
+const char *tree_prefix(const BinTree tree);
 
-struct btree btree_init(int size);
-struct btree_node *btree_insert(struct btree *tree, int id, int fd);
-struct btree_node *btree_search_fd(const struct btree tree, int fd);
-struct btree_node *btree_search_id(const struct btree tree, int id);
-struct btree_node btree_remove_fd(struct btree *tree, int fd);
-struct btree_node btree_remove_id(struct btree *tree, int id);
-void btree_destroy(struct btree tree);
+int node_id(const Node node);
+int node_fd(const Node node);
+IntArray node_clients(const Node node);
 
 #endif

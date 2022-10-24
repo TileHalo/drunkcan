@@ -4,16 +4,29 @@
 
 #include "canopen.h"
 
+#define CANOPEN_BITMASK 127
+#define CANOPEN_EFF_BITMASK 134217727
+
+static int get_id(int id);
+
+static int
+get_id(int id)
+{
+	if (id > CANOPEN_BITMASK) {
+		return id & CANOPEN_EFF_BITMASK;
+	} else {
+		return id & CANOPEN_BITMASK;
+	}
+
+}
 
 struct protocol_conf
-canopen_protocol()
+canopen_protocol(void)
 {
 	struct protocol_conf conf;
 
-	conf.idmask = CANOPEN_BITMASK;
-	conf.idemask = CANOPEN_EFF_BITMASK;
-
 	conf.protocol = CANOPEN;
+	conf.id = get_id;
 
 	return conf;
 

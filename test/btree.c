@@ -18,10 +18,10 @@
 static int btree_setup(void **state);
 static int btree_teardown(void **state);
 static void btree_insert_test(void **state);
-static void btree_search_fd_test(void **state);
-static void btree_search_id_test(void **state);
-static void btree_remove_fd_test(void **state);
-static void btree_remove_id_test(void **state);
+// static void btree_search_fd_test(void **state);
+// static void btree_search_id_test(void **state);
+// static void btree_remove_fd_test(void **state);
+// static void btree_remove_id_test(void **state);
 
 int __wrap_remove(const char *__filename);
 
@@ -31,88 +31,84 @@ static int fds[11] = { 7, 80, 44, 731, 20, 1, 53, 8, 35, 88, 242 };
 static int
 btree_setup(void **state)
 {
-	struct btree tree;
+	BinTree tree;
 	int i;
 
-	if (!(*state = malloc(sizeof(struct btree)))) {
-		return -1;
-	}
-
-	tree = btree_init(10);
-	if (!tree.tree || tree.root != -1) {
+	if (!(tree = btree_init(20, NULL))) {
 		return -1;
 	}
 
 	for (i = 0; i < 11; i++){
-		if (!btree_insert(&tree, ids[i], fds[i])) {
+		if (!btree_insert(tree, ids[i], fds[i])) {
 			return -1;
 		}
 	}
 
-	if (!(*state = memcpy(*state, &tree, sizeof(tree)))) {
-		return -1;
-	}
-
+	*state = tree;
 
 	return 0;
 }
 static int
 btree_teardown(void **state)
 {
-	struct btree *tree;
+	BinTree tree;
 
 	tree = *state;
 
-	// btree_destroy(*tree);
+	btree_destroy(tree);
 	return 0;
 }
 
 static void
 btree_insert_test(void **state)
 {
-	struct btree *tree;
+	BinTree tree;
 
 	tree = *state;
 
-	assert_int_equal(tree->root, ids[0]);
+	/* Correct root */
+	assert_int_equal(node_id(btree_root(tree)), ids[0]);
+
+	assert_non_null(btree_insert(tree, 2000, 2000));
 
 }
 
-static void
-btree_search_fd_test(void **state)
-{
-	struct btree *tree;
+// static void
+// btree_search_fd_test(void **state)
+// {
+// 	BinTree tree;
+// 	(void) tree;
 
-	tree = *state;
+// 	tree = *state;
 
-}
+// }
 
-static void
-btree_search_id_test(void **state)
-{
-	struct btree *tree;
+// static void
+// btree_search_id_test(void **state)
+// {
+// 	BinTree tree;
 
-	tree = *state;
+// 	tree = *state;
 
-}
+// }
 
-static void
-btree_remove_fd_test(void **state)
-{
-	struct btree *tree;
+// static void
+// btree_remove_fd_test(void **state)
+// {
+// 	BinTree tree;
 
-	tree = *state;
+// 	tree = *state;
 
-}
+// }
 
-static void
-btree_remove_id_test(void **state)
-{
-	struct btree *tree;
+// static void
+// btree_remove_id_test(void **state)
+// {
+// 	BinTree tree;
 
-	tree = *state;
+// 	tree = *state;
 
-}
+// }
 
 int
 __wrap_remove(const char *__filename)
