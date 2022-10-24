@@ -1,5 +1,6 @@
 /* See LICENSE file for license and copyright details */
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -10,12 +11,31 @@
 #include "protocol.h"
 #include "btree.h"
 
+struct btree_node {
+	int id; /* CANopen/etc node id. Max is 29 bits */
+	int fd; /* epoll listen fd */
+	IntArray clients; /* epoll client fds */
+	Node idl, idr;
+	Node fdl, fdr;
+};
 
-static void btree_insert_fd(struct btree_node *root, struct btree_node *node);
-static void btree_insert_id(struct btree_node *root, struct btree_node *node);
+/* Binary tree that can search with both fd and id */
+struct btree {
+	int size; /* Max 29 bits */
+	int root;
+	char prefix[UNIX_NAMESIZE]; /* Prefix for all fd names */
+	struct protocol_conf protocol;
+	Node tree; /* This is list by id */
+};
+
+static void btree_insert_fd(Node root, Node node);
+static void btree_insert_id(Node root, Node node);
+
+static void clean_tree(Node node, void *dat);
+static void traverse(Node root, void (*func)(Node n, void *d), void *d);
 
 static void
-btree_insert_fd(struct btree_node *root, struct btree_node *node)
+btree_insert_fd(Node root, Node node)
 {
 	while (root->fd != node->fd) {
 		if (root->fd < node->fd) {
@@ -36,7 +56,7 @@ btree_insert_fd(struct btree_node *root, struct btree_node *node)
 }
 
 static void
-btree_insert_id(struct btree_node *root, struct btree_node *node)
+btree_insert_id(Node root, Node node)
 {
 	while (root->id != node->id) {
 		if (root->id < node->id) {
@@ -56,64 +76,114 @@ btree_insert_id(struct btree_node *root, struct btree_node *node)
 	}
 }
 
-
-struct btree
-btree_init(int size)
+static void
+clean_tree(Node node, void *dat)
 {
-	struct btree tree;
+	char sock[UNIX_NAMESIZE + 11], *prefix;
 
-	tree.size = size;
+	prefix = dat;
 
-	tree.root = -1;
 
-	memset(tree.prefix, 0, UNIX_NAMESIZE);
+	int_array_destroy(node->clients);
+	sprintf(sock, "%s_%d", prefix, node->id);
+	remove(sock);
 
-	if (!(tree.tree = calloc(size, sizeof(struct btree_node)))) {
-		tree.size = 0;
-		return tree;
+}
+
+static void
+traverse(Node root, void (*func)(Node n, void *d), void *d)
+{
+	if (!root) {
+		return;
+	}
+	traverse(root->idl, func, d);
+	func(root, d);
+	traverse(root->idr, func, d);
+
+}
+
+BinTree
+btree_init(int size, const char *prefix)
+{
+	BinTree tree;
+
+
+	if (!(tree = malloc(sizeof(struct btree)))) {
+		return NULL;
+	}
+
+	if (!(tree->tree = calloc(size, sizeof(struct btree_node)))) {
+		return NULL;
+	}
+
+	tree->size = size;
+	tree->root = -1;
+
+	if (prefix == NULL) {
+		memset(tree->prefix, 0, UNIX_NAMESIZE);
+	} else {
+		strcpy(tree->prefix, prefix);
 	}
 
 	return tree;
 }
 
 
-struct btree_node *
-btree_insert(struct btree *tree, int id, int fd)
+Node
+btree_insert(BinTree tree, int id, int fd)
 {
 	struct btree_node node;
 
 	if (id >= tree->size) {
 		int i, osize;
-		struct btree_node *old;
+		ptrdiff_t *old[4];
 
-		if (!(old = calloc(tree->size, sizeof(struct btree_node)))) {
-			return NULL;
+		for (i = 0; i < 4; i++) {
+			if (!(old[i] = malloc(tree->size * sizeof(node)))) {
+				return NULL;
+			}
+			memset(old[i], 1, sizeof(node) * tree->size);
 		}
+		for (i = 0; i < tree->size; i++) {
+			if (tree->tree[i].fdl)
+				old[0][i] = tree->tree - tree->tree[i].fdl;
+			if (tree->tree[i].fdr)
+				old[1][i] = tree->tree - tree->tree[i].fdr;
+			if (tree->tree[i].idl)
+				old[2][i] = tree->tree - tree->tree[i].idl;
+			if (tree->tree[i].idr)
+				old[3][i] = tree->tree - tree->tree[i].idr;
+		}
+
 		osize = tree->size;
-		memcpy(old, tree->tree, tree->size);
 		tree->size = MAX(id + 1, tree->size * 2);
 		tree->tree = realloc(tree->tree,
-		       sizeof(struct btree_node)*(tree->size));
+				     sizeof(struct btree_node) * (tree->size));
 		if (!tree->tree) {
 			return NULL;
 		}
 
-		/* Update all non-null pointers */
+		memset(tree->tree + osize, 0,
+		       sizeof(node) * (tree->size - osize));
+
+                /* Update all non-null pointers */
 		for (i = 0; i < osize; i++) {
-			if (old[i].fdl != NULL) {
-				tree->tree[i].fdl = tree->tree + (old[i].fdl - old);
-			}
-			if (old[i].fdr != NULL) {
-				tree->tree[i].fdr = tree->tree + (old[i].fdr - old);
-			}
-			if (old[i].idl != NULL) {
-				tree->tree[i].idl = tree->tree + (old[i].idl - old);
-			}
-			if (old[i].idr != NULL) {
-				tree->tree[i].idr = tree->tree + (old[i].idr - old);
-			}
+			tree->tree[i].fdl = NULL;
+			tree->tree[i].fdr = NULL;
+			tree->tree[i].idl = NULL;
+			tree->tree[i].idr = NULL;
+			if (old[0][i] < 0)
+				tree->tree[i].fdl = tree->tree - old[0][i];
+			if (old[1][i] < 0)
+				tree->tree[i].fdr = tree->tree - old[1][i];
+			if (old[2][i] < 0)
+				tree->tree[i].idl = tree->tree - old[2][i];
+			if (old[3][i] < 0)
+				tree->tree[i].idr = tree->tree - old[3][i];
 		}
-		free(old);
+		for (i = 0; i < 4; i++) {
+			free(old[i]);
+		}
 	}
 
 	node.id = id;
@@ -134,15 +204,24 @@ btree_insert(struct btree *tree, int id, int fd)
 	return &tree->tree[id];
 }
 
-struct btree_node *
-btree_search_fd(const struct btree tree, int fd)
+Node
+btree_root(const BinTree tree)
 {
-	struct btree_node *node;
-
-	if (tree.root < 0) {
+	if (tree->root < 0) {
 		return NULL;
 	}
-	node = &tree.tree[tree.root];
+	return &tree->tree[tree->root];
+}
+
+Node
+btree_search_fd(const BinTree tree, int fd)
+{
+	Node node;
+
+	if (tree->root < 0) {
+		return NULL;
+	}
+	node = &tree->tree[tree->root];
 
 	while (node->fd != fd && node) {
 		if (node->fd < fd) {
@@ -165,15 +244,15 @@ btree_search_fd(const struct btree tree, int fd)
 
 }
 
-struct btree_node *
-btree_search_id(const struct btree tree, int id)
+Node
+btree_search_id(const BinTree tree, int id)
 {
-	struct btree_node *node;
+	Node node;
 
-	if (tree.root < 0) {
+	if (tree->root < 0) {
 		return NULL;
 	}
-	node = &tree.tree[tree.root];
+	node = &tree->tree[tree->root];
 
 	while (node->id != id) {
 		if (node->id < id) {
@@ -194,23 +273,60 @@ btree_search_id(const struct btree tree, int id)
 	}
 	return node;
 }
-struct btree_node btree_remove_fd(struct btree *tree, int fd);
-struct btree_node btree_remove_id(struct btree *tree, int id);
 
 void
-btree_destroy(struct btree tree)
+btree_set_protocol(BinTree tree, struct protocol_conf conf)
 {
-	int i;
-	char sock[UNIX_NAMESIZE + 11];
+	tree->protocol = conf;
+}
 
-	for (i = 0; i < tree.size; i++) {
-		if (tree.tree[i].id > 0) {
-			int_array_destroy(tree.tree[i].clients);
-			sprintf(sock, "%s_%d", tree.prefix, tree.tree[i].id);
-			remove(sock);
-		}
-	}
-	int_array_destroy(tree.tree[0].clients); /* Destroy zeroth clients */
-	remove(tree.prefix);
-	free(tree.tree);
+Node btree_remove_fd(BinTree tree, int fd);
+Node btree_remove_id(BinTree tree, int id);
+
+void
+btree_destroy(BinTree tree)
+{
+	btree_apply(tree, clean_tree, tree->prefix);
+	remove(tree->prefix);
+	free(tree->tree);
+	free(tree);
+}
+
+void
+btree_apply (BinTree tree, void (*func)(Node node, void *dat), void *dat)
+{
+	traverse(&tree->tree[tree->root], func, dat);
+}
+
+struct protocol_conf *
+tree_protocol(BinTree tree)
+{
+	return &tree->protocol;
+}
+
+const char *
+tree_prefix(const BinTree tree)
+{
+	return tree->prefix;
+}
+
+
+int
+node_id(const Node node)
+{
+	return node->id;
+}
+
+int
+node_fd(const Node node)
+{
+	return node->fd;
+}
+
+IntArray
+node_clients(const Node node)
+{
+	(void) node;
+	// return node->clients;
+	return NULL;
 }

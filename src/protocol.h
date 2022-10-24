@@ -8,8 +8,6 @@ enum protocol{
 
 struct protocol_conf {
 	enum protocol protocol;
-	int idmask;
-	int idemask;
-
+	int (*id)(int);
 };
 #endif

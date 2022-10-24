@@ -34,18 +34,19 @@
 
 
 static int init_sigfd(void);
-/* Initialize CAN-socket */
 static int init_can(const char *sock);
-/* Initialize an Unix domain socket */
 static int init_socket(const char *sock);
-/* Make a socket epollable */
+
 static int set_epoll(int sock, int efd, int events);
 static int set_nonblock(int sock);
-static int process_conn(struct btree_node *node, int efd);
-static int process_in(int fd, int can, struct btree *tree, int efd);
-static int process_hup(int fd, struct btree *tree, int efd);
-static int process_can(int fd, struct btree *tree, int efd);
-static int process_sock(int fd, int can, struct btree *tree, int efd);
+
+static void remove_fd(Node node, void *data);
+
+static int process_conn(Node node, int efd);
+static int process_in(int fd, int can, BinTree tree, int efd);
+static int process_hup(int fd, BinTree tree, int efd);
+static int process_can(int fd, BinTree tree, int efd);
+static int process_sock(int fd, int can, BinTree tree, int efd);
 
 
 static int
@@ -125,7 +126,7 @@ init_socket(const char *sock)
 		int e;
 		e = errno;
 		die("Error while binding Unix-socket %s: %s",
-			addr.sun_path, strerror(e));
+		    addr.sun_path, strerror(e));
 	}
 
 	return s;
@@ -147,7 +148,7 @@ set_epoll(int sock, int efd, int events)
 			int e;
 			e = errno;
 			die("Error while creating epoll instance: %s",
-				strerror(e));
+			    strerror(e));
 		}
 	}
 
@@ -158,7 +159,7 @@ set_epoll(int sock, int efd, int events)
 		int e;
 		e = errno;
 		die("Error while epoll_ctl: %s",
-			strerror(e));
+		    strerror(e));
 	}
 
 	return efd;
@@ -170,21 +171,29 @@ set_nonblock(int sock)
 	return fcntl(sock, F_SETFD, fcntl(sock, F_GETFD, 0) | O_NONBLOCK);
 }
 
+static void
+remove_fd(Node node, void *data)
+{
+	int fd;
+
+	fd = *(int *)data;
+	int_array_remove(node_clients(node), fd);
+}
 
 static int
-process_conn(struct btree_node *node, int efd)
+process_conn(Node node, int efd)
 {
 	int conn;
 
-	conn = accept(node->fd, NULL, NULL);
+	conn = accept(node_fd(node), NULL, NULL);
 	set_epoll(conn, efd, EPOLLHUP | EPOLLRDHUP);
-	int_array_push(&node->clients, conn);
+	int_array_push(node_clients(node), conn);
 
 	return 0;
 }
 
 static int
-process_in(int fd, int can, struct btree *tree, int efd)
+process_in(int fd, int can, BinTree tree, int efd)
 {
 
 	if (fd == can) {
@@ -195,26 +204,23 @@ process_in(int fd, int can, struct btree *tree, int efd)
 }
 
 static int
-process_hup(int fd, struct btree *tree, int efd)
+process_hup(int fd, BinTree tree, int efd)
 {
-	int i;
 	epoll_ctl(efd, EPOLL_CTL_DEL,
-	fd, NULL);
+		  fd, NULL);
 	close(fd);
-	for (i = 0; i < tree->size; i++) {
-		int_array_remove(&tree->tree[i].clients, fd);
-	}
+	btree_apply(tree, remove_fd, &fd);
 
 	return 0;
 
 }
 
 static int
-process_can(int fd, struct btree *tree, int efd)
+process_can(int fd, BinTree tree, int efd)
 {
-	int len, i, id;
+	int len, id;
 	struct can_frame fr;
-	struct btree_node *node;
+	Node node;
 
 	len = read(fd, &fr, sizeof(fr));
 	if (len < 0) {
@@ -224,17 +230,15 @@ process_can(int fd, struct btree *tree, int efd)
 		return 1;
 	}
 
-	id = fr.can_id & tree->protocol.idmask;
+	id = tree_protocol(tree)->id(fr.can_id);
 
-	if ((node = btree_search_id(*tree, id))) {
-		for (i = 0; i < (int)node->clients.i; i++) {
-			write(node->clients.data[i], fr.data, fr.can_dlc);
-		}
+	if ((node = btree_search_id(tree, id))) {
+		/* TODO: Create a message queue here */
 	} else {
 		char sock[UNIX_NAMESIZE + 11];
 		int conn;
 
-		sprintf(sock, "%s_%d", tree->prefix, id);
+		sprintf(sock, "%s_%d", tree_prefix(tree), id);
 		conn = init_socket(sock);
 		efd = set_epoll(conn, efd, 0);
 		listen(conn, MAX_CONN);
@@ -245,30 +249,29 @@ process_can(int fd, struct btree *tree, int efd)
 	return 0;
 }
 static int
-process_sock(int fd, int can, struct btree *tree, int efd)
+process_sock(int fd, int can, BinTree tree, int efd)
 {
-	warn("Not implemented: %d, %s, %d", can, tree->prefix, efd);
+	warn("Not implemented: %d, %s, %d", can, tree_prefix(tree), efd);
 	return fd;
 }
 
-int
+	int
 event_loop(struct drunk_config conf)
 {
 	int nfds, i, conn, sfd, cansock, efd;
-	struct btree tree;
-	struct btree_node *cur;
+	BinTree tree;
+	Node cur;
 	struct epoll_event events[MAX_EVENTS], ev;
 
 	conf.prot = canopen_protocol();
 	cansock = init_can(conf.sock);
 	efd = set_epoll(cansock, -1, 0);
-	tree = btree_init(2048);
-	strcpy(tree.prefix, conf.prefix);
+	tree = btree_init(2048, conf.prefix);
 
 	conn = init_socket(conf.prefix);
 	efd = set_epoll(conn, efd, 0);
 	listen(conn, MAX_CONN);
-	btree_insert(&tree, 0, conn); /* Make going through fds easier */
+	btree_insert(tree, 0, conn); /* Make going through fds easier */
 
 	sfd = init_sigfd();
 	efd = set_epoll(sfd, efd, 0);
@@ -281,22 +284,22 @@ event_loop(struct drunk_config conf)
 		for (i = 0; i < nfds; i++) {
 			ev = events[i];
 			cur = btree_search_fd(tree, ev.data.fd);
-			if (cur && cur->fd == ev.data.fd) { /* New connection */
+			if (cur) { /* New connection */
 				process_conn(cur, efd);
 			} else if (ev.data.fd == sfd) {
 				goto cleanup;
 			} else if (ev.events & (EPOLLIN | EPOLLPRI)) {
-				process_in(ev.data.fd, cansock, &tree, efd);
+				process_in(ev.data.fd, cansock, tree, efd);
 			} else if (ev.events & (EPOLLRDHUP | EPOLLHUP)) {
-				process_hup(ev.data.fd, &tree, efd);
+				process_hup(ev.data.fd, tree, efd);
 			} else {
 				warn("Event that should not happen: %x\n",
-					ev.events);
+				     ev.events);
 			}
 		}
 	}
 
-cleanup:
+	cleanup:
 	fprintf(stderr, "Cleaning up\n");
 	btree_destroy(tree);
 	close(efd);

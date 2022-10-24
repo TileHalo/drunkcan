@@ -46,10 +46,10 @@ debug: softclean
 	@DEBUG=1 $(MAKE)
 
 test: $(TEST)
-	$(patsubst %,./%;,$^)
+	-$(patsubst %,./%;,$^)
 
 testsuite: $(TEST)
-	$(patsubst %,$(CHECKTOOL) $(CHECKFLAGS) ./%;,$^)
+	-$(patsubst %,$(CHECKTOOL) $(CHECKFLAGS) ./%;,$^)
 
 install: all
 	mkdir -p "$(DESTDIR)$(PREFIX)/bin"

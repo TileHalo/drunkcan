@@ -2,16 +2,14 @@
 #ifndef DRUNKCAN_INTARRAY_H
 #define DRUNKCAN_INTARRAY_H
 
-struct int_array {
-	unsigned int size;
-	unsigned int i;
-	int *data;
-};
+typedef struct int_array *IntArray;
 
-struct int_array int_array_init(int size);
-int *int_array_push(struct int_array *arr, int data);
-int int_array_search(const struct int_array arr, int data);
-int int_array_remove(struct int_array *arr, int data);
-void int_array_destroy(struct int_array arr);
+IntArray int_array_init(int size);
+int *int_array_push(IntArray arr, int data);
+int int_array_search(const IntArray arr, int data);
+int int_array_remove(IntArray arr, int data);
+int *int_array_at(const IntArray arr, int id);
+int int_array_len(const IntArray arr);
+void int_array_destroy(IntArray arr);
 
 #endif

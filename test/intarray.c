@@ -24,15 +24,8 @@ static void array_remove_test(void **state);
 static int
 array_setup(void **state)
 {
-	struct int_array arr;
 
-	if (!(*state = malloc(sizeof(struct int_array)))) {
-		return -1;
-	}
-	arr = int_array_init(10);
-	memcpy(*state, &arr, sizeof(arr));
-
-	if (!(arr.i == 0 && arr.size == 10 && arr.data)) {
+	if (!(*state = int_array_init(10))) {
 		return -1;
 	}
 
@@ -42,19 +35,18 @@ array_setup(void **state)
 static int
 array_teardown(void **state)
 {
-	struct int_array *arr;
+	IntArray arr;
 
 	arr = *state;
-	int_array_destroy(*arr);
+	int_array_destroy(arr);
 
-	free(*state);
 	return 0;
 }
 
 static void
 array_push_test(void **state)
 {
-	struct int_array *arr;
+	IntArray arr;
 	const int data[10] = {3, 100, -5, 16, 75, 8, 0, -555, 9, 10};
 	int i, *j;
 
@@ -63,14 +55,14 @@ array_push_test(void **state)
 	for (i = 0; i < 10; i++) {
 		j = int_array_push(arr, data[i]);
 		assert_int_equal(*j, data[i]);
-		assert_int_equal(arr->i, i + 1);
+		assert_int_equal(int_array_len(arr), i + 1);
 	}
 }
 
 static void
 array_push_stress_test(void **state)
 {
-	struct int_array *arr;
+	IntArray arr;
 	int i, *j;
 
 	const int len = 2000000;
@@ -80,14 +72,14 @@ array_push_stress_test(void **state)
 	for (i = 0; i < len; i++) {
 		j = int_array_push(arr, i);
 		assert_int_equal(*j, i);
-		assert_int_equal(arr->i, i + 1);
+		assert_int_equal(int_array_len(arr), i + 1);
 	}
 }
 
 static void
 array_search_test(void **state)
 {
-	struct int_array *arr;
+	IntArray arr;
 	int i, j;
 
 	const int data[10] = {3, 100, -5, 16, 75, 8, 0, -555, 9, 10};
@@ -99,19 +91,19 @@ array_search_test(void **state)
 	}
 
 	for (i = 9; i > -1; i--) {
-		j = int_array_search(*arr, data[i]);
+		j = int_array_search(arr, data[i]);
 		assert_int_not_equal(j, -1);
 		assert_int_equal(data[j], data[i]);
 	}
 
-	j = int_array_search(*arr, 10000);
+	j = int_array_search(arr, 10000);
 	assert_int_equal(j, -1);
 }
 
 static void
 array_remove_test(void **state)
 {
-	struct int_array *arr;
+	IntArray arr;
 	int i;
 
 	const int data[10] = {3, 100, -5, 16, 75, 8, 0, -555, 9, 10};
@@ -121,7 +113,6 @@ array_remove_test(void **state)
 	for (i = 0; i < 10; i++) {
 		int_array_push(arr, data[i]);
 	}
-	assert_memory_equal(arr->data, data, sizeof(int)*10);
 	assert_int_equal(int_array_remove(arr, 8), 9);
 	assert_int_equal(int_array_remove(arr, 8), -1);
 	assert_int_equal(*int_array_push(arr, 8), 8);
