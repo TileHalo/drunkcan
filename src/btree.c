@@ -14,7 +14,7 @@
 struct btree_node {
 	int id; /* CANopen/etc node id. Max is 29 bits */
 	int fd; /* epoll listen fd */
-	IntArray clients; /* epoll client fds */
+	int client;
 	Node idl, idr;
 	Node fdl, fdr;
 	void *status;
@@ -89,7 +89,6 @@ clean_tree(Node node, void *dat)
 	if (node->status) {
 		free(node->status);
 	}
-	int_array_destroy(node->clients);
 	sprintf(sock, "%s_%d", prefix, node->id);
 	remove(sock);
 
@@ -199,7 +198,7 @@ btree_insert(BinTree tree, int id, int fd)
 	node.idr = NULL;
 	node.fdl = NULL;
 	node.fdr = NULL;
-	node.clients = int_array_init(10);
+	node.client = -1;
 	node.status = NULL;
 	tree->tree[id] = node;
 
@@ -334,8 +333,23 @@ node_fd(const Node node)
 	return node->fd;
 }
 
-IntArray
-node_clients(const Node node)
+int
+node_set_client(Node node, int fd)
 {
-	return node->clients;
+	node->client = fd;
+	return 0;
+}
+
+int
+node_set_fd(Node node, int fd)
+{
+	node->fd = fd;
+
+	return 0;
+}
+
+int
+node_client(const Node node)
+{
+	return node->client;
 }

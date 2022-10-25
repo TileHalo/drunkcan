@@ -28,7 +28,7 @@ canopen_protocol(void)
 
 	conf.frame_size = sizeof(struct canopen_frame);
 	conf.protocol = CANOPEN;
-	conf.id = get_id;
+	conf.get_id = get_id;
 
 	return conf;
 
