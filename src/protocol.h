@@ -9,6 +9,6 @@ enum protocol{
 struct protocol_conf {
 	enum protocol protocol;
 	unsigned int frame_size;
-	int (*id)(int);
+	int (*get_id)(int);
 };
 #endif

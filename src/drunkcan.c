@@ -40,6 +40,7 @@ static int init_socket(const char *sock);
 
 static int set_epoll(int sock, int efd, int events);
 static int set_nonblock(int sock);
+static int close_socket(int fd, int efd);
 
 static void remove_fd(Node node, void *data);
 
@@ -174,13 +175,23 @@ set_nonblock(int sock)
 	return fcntl(sock, F_SETFD, fcntl(sock, F_GETFD, 0) | O_NONBLOCK);
 }
 
+static int
+close_socket(int fd, int efd)
+{
+	epoll_ctl(efd, EPOLL_CTL_DEL,
+		  fd, NULL);
+	return close(fd);
+}
+
 static void
 remove_fd(Node node, void *data)
 {
 	int fd;
 
 	fd = *(int *)data;
-	int_array_remove(node_clients(node), fd);
+	if (node_client(node) == fd) {
+		node_set_client(node, -1);
+	}
 }
 
 static int
@@ -189,8 +200,9 @@ process_conn(Node node, int efd)
 	int conn;
 
 	conn = accept(node_fd(node), NULL, NULL);
-	set_epoll(conn, efd, EPOLLHUP | EPOLLRDHUP);
-	int_array_push(node_clients(node), conn);
+	set_epoll(conn, efd, 0);
+	node_set_client(node, conn);
+	close_socket(node_fd(node), efd);
 
 	return conn;
 }
@@ -209,9 +221,7 @@ process_in(int fd, int can, BinTree tree, int efd)
 static int
 process_hup(int fd, BinTree tree, int efd)
 {
-	epoll_ctl(efd, EPOLL_CTL_DEL,
-		  fd, NULL);
-	close(fd);
+	close_socket(fd, efd);
 	btree_apply(tree, remove_fd, &fd);
 
 	return 0;
@@ -233,7 +243,7 @@ process_can(int fd, BinTree tree, int efd)
 		return 1;
 	}
 
-	id = tree_protocol(tree)->id(fr.can_id);
+	id = tree_protocol(tree)->get_id(fr.can_id);
 
 	if ((node = btree_search_id(tree, id))) {
 		/* TODO: Create a message queue here */
@@ -306,7 +316,6 @@ event_loop(struct drunk_config conf)
 {
 	int nfds, i, conn, cansock, efd, res;
 	SockMap socks;
-	Queue q;
 	BinTree tree;
 	struct epoll_event events[MAX_EVENTS];
 
@@ -318,19 +327,13 @@ event_loop(struct drunk_config conf)
 
 	cansock = init_can(conf.sock);
 	efd = set_epoll(cansock, -1, 0);
-	if (!(q = queue_init(10, sizeof(struct can_frame)))) {
-		die("Failed to initialize CAN queue: %s", strerror(errno));
-	}
-	res = sock_map_add_can(socks, q, cansock);
+	res = sock_map_add_can(socks, sizeof(struct can_frame), cansock);
 	tree = btree_init(2048, conf.prefix);
 
 	conn = init_socket(conf.prefix);
 	efd = set_epoll(conn, efd, 0);
 	listen(conn, MAX_CONN);
-	if (!(q = queue_init(10, conf.prot.frame_size))) {
-		die("Failed to initialize Socket queue: %s", strerror(errno));
-	}
-	res = sock_map_add_can(socks, q, cansock);
+	res = sock_map_add_can(socks, conf.prot.frame_size, cansock);
 	btree_insert(tree, 0, conn); /* Make going through fds easier */
 
 	sfd = init_sigfd();
@@ -343,7 +346,7 @@ event_loop(struct drunk_config conf)
 		}
 		for (i = 0; i < nfds; i++) {
 			res  = process_event(tree, events[i], socks, efd);
-			if (res == 1) {
+			if (res == 1) { /* A signal was catched */
 				goto cleanup;
 			} else if (res < 0) {
 				die("Please fix this, died on event loop\n");

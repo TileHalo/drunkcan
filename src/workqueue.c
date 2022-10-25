@@ -19,6 +19,7 @@ struct queue {
 };
 
 struct sock_map_node {
+	int fd;
 	Queue q;
 	struct sock_map_node *left, *right;
 };
@@ -120,19 +121,32 @@ sock_map_init(void)
 }
 
 int
-sock_map_add(SockMap map, Queue q, int fd)
+sock_map_add(SockMap map, unsigned int data_size, int fd)
 {
+
+	if (map->i == map->size) {
+		/* TODO: Do the reallocation trick here */
+	}
+
+	map->list[map->i].fd = fd;
+	map->list[map->i].q = queue_init(20, data_size);
+	map->list[map->i].left = NULL;
+	map->list[map->i].right = NULL;
+	if (!map->list[map->i].q) {
+		return -1;
+	}
+
 
 
 	return 0;
 }
 
 int
-sock_map_add_can(SockMap map, Queue q, int fd)
+sock_map_add_can(SockMap map, unsigned int data_size, int fd)
 {
 	map->can = fd;
 
-	return sock_map_add(map, q, fd);
+	return sock_map_add(map, data_size, fd);
 }
 
 int
@@ -144,6 +158,13 @@ sock_map_cansock(const SockMap map)
 Queue
 sock_map_find(SockMap map, int fd)
 {
+	int i;
+
+	for (i = 0; i < map->i; i++) {
+		if (map->list[i].fd == fd) {
+			return map->list[i].q;
+		}
+	}
 	return NULL;
 }
 

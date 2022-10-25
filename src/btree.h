@@ -25,7 +25,9 @@ void *tree_status(BinTree tree);
 
 int node_id(const Node node);
 int node_fd(const Node node);
-IntArray node_clients(Node node);
+int node_set_client(Node node, int fd);
+int node_set_fd(Node node, int fd);
+int node_client(Node node);
 void *node_status(Node node);
 
 #endif
