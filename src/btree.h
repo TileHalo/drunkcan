@@ -21,9 +21,11 @@ void btree_destroy(BinTree tree);
 void btree_apply(BinTree tree, void (*func)(Node node, void *dat), void *dat);
 struct protocol_conf *tree_protocol(BinTree tree);
 const char *tree_prefix(const BinTree tree);
+void *tree_status(BinTree tree);
 
 int node_id(const Node node);
 int node_fd(const Node node);
-IntArray node_clients(const Node node);
+IntArray node_clients(Node node);
+void *node_status(Node node);
 
 #endif

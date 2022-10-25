@@ -17,12 +17,14 @@ struct btree_node {
 	IntArray clients; /* epoll client fds */
 	Node idl, idr;
 	Node fdl, fdr;
+	void *status;
 };
 
 /* Binary tree that can search with both fd and id */
 struct btree {
 	int size; /* Max 29 bits */
 	int root;
+	void *status;
 	char prefix[UNIX_NAMESIZE]; /* Prefix for all fd names */
 	struct protocol_conf protocol;
 	Node tree; /* This is list by id */
@@ -84,6 +86,9 @@ clean_tree(Node node, void *dat)
 	prefix = dat;
 
 
+	if (node->status) {
+		free(node->status);
+	}
 	int_array_destroy(node->clients);
 	sprintf(sock, "%s_%d", prefix, node->id);
 	remove(sock);
@@ -124,6 +129,8 @@ btree_init(int size, const char *prefix)
 	} else {
 		strcpy(tree->prefix, prefix);
 	}
+
+	tree->status = NULL;
 
 	return tree;
 }
@@ -193,6 +200,7 @@ btree_insert(BinTree tree, int id, int fd)
 	node.fdl = NULL;
 	node.fdr = NULL;
 	node.clients = int_array_init(10);
+	node.status = NULL;
 	tree->tree[id] = node;
 
 	if (tree->root < 0) {
@@ -289,6 +297,9 @@ btree_destroy(BinTree tree)
 	btree_apply(tree, clean_tree, tree->prefix);
 	remove(tree->prefix);
 	free(tree->tree);
+	if (tree->status) {
+		free(tree->status);
+	}
 	free(tree);
 }
 
@@ -326,7 +337,5 @@ node_fd(const Node node)
 IntArray
 node_clients(const Node node)
 {
-	(void) node;
-	// return node->clients;
-	return NULL;
+	return node->clients;
 }

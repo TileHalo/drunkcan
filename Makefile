@@ -2,7 +2,6 @@
 .POSIX:
 
 include config.mk
-include test.mk
 
 all: $(NAME)
 .PHONY: test debug clean dist install all softclean
@@ -10,7 +9,7 @@ all: $(NAME)
 SEDREP := sed -e 's/^\(.*\)\.o:/\1.d \1.o:/'
 
 SRC = src/util.c src/btree.c src/protocol.c src/canopen.c src/drunkcan.c \
-      src/intarray.c
+      src/intarray.c src/workqueue.c
 OBJ = ${SRC:.c=.o}
 TEST = test/btree test/intarray
 
