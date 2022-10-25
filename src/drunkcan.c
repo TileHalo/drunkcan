@@ -25,6 +25,7 @@
 #include "intarray.h"
 #include "btree.h"
 #include "canopen.h"
+#include "workqueue.h"
 #include "drunkcan.h"
 
 #define MAX_EVENTS 32
@@ -47,6 +48,8 @@ static int process_in(int fd, int can, BinTree tree, int efd);
 static int process_hup(int fd, BinTree tree, int efd);
 static int process_can(int fd, BinTree tree, int efd);
 static int process_sock(int fd, int can, BinTree tree, int efd);
+
+static int sfd;
 
 
 static int
@@ -189,7 +192,7 @@ process_conn(Node node, int efd)
 	set_epoll(conn, efd, EPOLLHUP | EPOLLRDHUP);
 	int_array_push(node_clients(node), conn);
 
-	return 0;
+	return conn;
 }
 
 static int
@@ -255,22 +258,79 @@ process_sock(int fd, int can, BinTree tree, int efd)
 	return fd;
 }
 
-	int
+static int
+process_event(BinTree tree, struct epoll_event ev, SockMap socks, int efd)
+{
+	Node cur;
+	Queue q;
+	int cansock;
+
+
+	cansock = sock_map_cansock(socks);
+	cur = btree_search_fd(tree, ev.data.fd);
+
+	if (cur) { /* New connection */
+		process_conn(cur, efd);
+		return 0;
+	} else if (ev.data.fd == sfd) {
+		return 1;
+	}
+
+	q = sock_map_find(socks, ev.data.fd);
+	if (!q) {
+		warn("Could not find proper socket queue for fd %d\n",
+		     ev.data.fd);
+	}
+	if (ev.events & (EPOLLIN | EPOLLPRI)) {
+		return process_in(ev.data.fd, cansock, tree, efd);
+	} else if (ev.events & (EPOLLOUT)) {
+		void *data;
+		if (!(data = queue_try_pop(q))) {
+			return 0;
+		}
+		if (write(ev.data.fd, data, queue_datasize(q)) < 0) {
+			return -1;
+		}
+	} else if (ev.events & (EPOLLRDHUP | EPOLLHUP)) {
+		return process_hup(ev.data.fd, tree, efd);
+	} else {
+		warn("Event that should not happen: %x\n",
+		     ev.events);
+	}
+
+	return 0;
+}
+
+int
 event_loop(struct drunk_config conf)
 {
-	int nfds, i, conn, sfd, cansock, efd;
+	int nfds, i, conn, cansock, efd, res;
+	SockMap socks;
+	Queue q;
 	BinTree tree;
-	Node cur;
-	struct epoll_event events[MAX_EVENTS], ev;
+	struct epoll_event events[MAX_EVENTS];
 
 	conf.prot = canopen_protocol();
+
+	if (!(socks = sock_map_init())) {
+		die("Failed to initialize socket map: %s", strerror(errno));
+	}
+
 	cansock = init_can(conf.sock);
 	efd = set_epoll(cansock, -1, 0);
+	if (!(q = queue_init(10, sizeof(struct can_frame)))) {
+		die("Failed to initialize CAN queue: %s", strerror(errno));
+	}
+	res = sock_map_add_can(socks, q, cansock);
 	tree = btree_init(2048, conf.prefix);
 
 	conn = init_socket(conf.prefix);
 	efd = set_epoll(conn, efd, 0);
 	listen(conn, MAX_CONN);
+	if (!(q = queue_init(10, conf.prot.frame_size))) {
+		die("Failed to initialize Socket queue: %s", strerror(errno));
+	}
+	res = sock_map_add_can(socks, q, cansock);
 	btree_insert(tree, 0, conn); /* Make going through fds easier */
 
 	sfd = init_sigfd();
@@ -282,19 +342,11 @@ event_loop(struct drunk_config conf)
 			goto cleanup;
 		}
 		for (i = 0; i < nfds; i++) {
-			ev = events[i];
-			cur = btree_search_fd(tree, ev.data.fd);
-			if (cur) { /* New connection */
-				process_conn(cur, efd);
-			} else if (ev.data.fd == sfd) {
+			res  = process_event(tree, events[i], socks, efd);
+			if (res == 1) {
 				goto cleanup;
-			} else if (ev.events & (EPOLLIN | EPOLLPRI)) {
-				process_in(ev.data.fd, cansock, tree, efd);
-			} else if (ev.events & (EPOLLRDHUP | EPOLLHUP)) {
-				process_hup(ev.data.fd, tree, efd);
-			} else {
-				warn("Event that should not happen: %x\n",
-				     ev.events);
+			} else if (res < 0) {
+				die("Please fix this, died on event loop\n");
 			}
 		}
 	}

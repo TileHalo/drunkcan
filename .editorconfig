@@ -8,6 +8,6 @@ insert_final_newline = true
 indent_style = tab
 indent_size = 8
 
-[*.{c,h}]
+[*.{c,h,sh}]
 indent_style = tab
 indent_size = 8

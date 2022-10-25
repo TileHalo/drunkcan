@@ -1,4 +1,5 @@
 /* See LICENSE file for license and copyright details */
+#include <stdint.h>
 
 #include "protocol.h"
 
@@ -25,6 +26,7 @@ canopen_protocol(void)
 {
 	struct protocol_conf conf;
 
+	conf.frame_size = sizeof(struct canopen_frame);
 	conf.protocol = CANOPEN;
 	conf.id = get_id;
 
