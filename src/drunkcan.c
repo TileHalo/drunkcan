@@ -24,7 +24,6 @@
 #include "protocol.h"
 #include "intarray.h"
 #include "btree.h"
-#include "canopen.h"
 #include "workqueue.h"
 #include "drunkcan.h"
 
@@ -89,7 +88,8 @@ init_can(const char *sock)
 	if (s < 0) {
 		int e;
 		e = errno;
-		die("Error while initializing CAN-socket: %s", strerror(e));
+		warn("Error while initializing CAN-socket: %s", strerror(e));
+		return -1;
 	}
 	memset(&addr, 0, sizeof(struct sockaddr_can));
 
@@ -97,7 +97,8 @@ init_can(const char *sock)
 	if (ioctl(s, SIOCGIFINDEX, &ifr) < 0) {
 		int e;
 		e = errno;
-		die("ioctl error on socket %s: %s", sock, strerror(e));
+		warn("ioctl error on socket %s: %s", sock, strerror(e));
+		return -1;
 	}
 
 	addr.can_family = AF_CAN;
@@ -106,7 +107,8 @@ init_can(const char *sock)
 	if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
 		int e;
 		e = errno;
-		die("Error while binding CAN-socket %s: %s", sock, strerror(e));
+		warn("Error while binding CAN-socket %s: %s", sock, strerror(e));
+		return -1;
 	}
 
 	return s;
@@ -121,7 +123,8 @@ init_socket(const char *sock)
 	if (s < 0) {
 		int e;
 		e = errno;
-		die("Error while initializing Unix-socket: %s", strerror(e));
+		warn("Error while initializing Unix-socket: %s", strerror(e));
+		return -1;
 	}
 
 	addr.sun_family = AF_UNIX;
@@ -129,8 +132,9 @@ init_socket(const char *sock)
 	if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
 		int e;
 		e = errno;
-		die("Error while binding Unix-socket %s: %s",
+		warn("Error while binding Unix-socket %s: %s",
 		    addr.sun_path, strerror(e));
+		return -1;
 	}
 
 	return s;
@@ -145,14 +149,17 @@ set_epoll(int sock, int efd, int events)
 	if (set_nonblock(sock) == -1) {
 		int e;
 		e = errno;
-		die("Error while setting nonblock: %s", strerror(e));
+		warn("Error while setting nonblock: %s", strerror(e));
+		return -1;
 	}
 	if (efd < 0) {
 		if ((efd = epoll_create1(0)) == -1) {
 			int e;
 			e = errno;
-			die("Error while creating epoll instance: %s",
+			/* Same here */
+			warn("Error while creating epoll instance: %s",
 			    strerror(e));
+			return -1;
 		}
 	}
 
@@ -162,8 +169,9 @@ set_epoll(int sock, int efd, int events)
 	if (epoll_ctl(efd, EPOLL_CTL_ADD, sock, &ev) == -1) {
 		int e;
 		e = errno;
-		die("Error while epoll_ctl: %s",
+		warn("Error while epoll_ctl: %s",
 		    strerror(e));
+		return -1;
 	}
 
 	return efd;
@@ -314,25 +322,53 @@ process_event(BinTree tree, struct epoll_event ev, SockMap socks, int efd)
 int
 event_loop(struct drunk_config conf)
 {
-	int nfds, i, conn, cansock, efd, res;
+	int nfds, i, conn, cansock, efd, res, e;
 	SockMap socks;
 	BinTree tree;
 	struct epoll_event events[MAX_EVENTS];
 
-	conf.prot = canopen_protocol();
 
 	if (!(socks = sock_map_init())) {
-		die("Failed to initialize socket map: %s", strerror(errno));
+		warn("Failed to initialize socket map: %s", strerror(errno));
+		return -1;
+	}
+	if (!(tree = btree_init(2048, conf.prefix))) {
+		e = errno;
+		warn("Failed to initialize protocol tree: %s", strerror(e));
+		sock_map_destroy(socks);
+		return -1;
 	}
 
+	/* Set up can socket */
 	cansock = init_can(conf.sock);
+	if (cansock < 0) {
+		res = -1;
+		goto err_cleanup;
+	}
+
 	efd = set_epoll(cansock, -1, 0);
+	if (efd < 0) {
+		res = -1;
+		goto err_cleanup;
+	}
 	res = sock_map_add_can(socks, sizeof(struct can_frame), cansock);
-	tree = btree_init(2048, conf.prefix);
 
 	conn = init_socket(conf.prefix);
+	if (conn < 0) {
+		res = -1;
+		goto cleanup;
+	}
+
 	efd = set_epoll(conn, efd, 0);
-	listen(conn, MAX_CONN);
+
+	if (efd < 0) {
+		res = -1;
+		goto cleanup;
+	}
+
+	if (listen(conn, MAX_CONN) < -1) {
+		e = errno;
+	}
 	res = sock_map_add_can(socks, conf.prot.frame_size, cansock);
 	btree_insert(tree, 0, conn); /* Make going through fds easier */
 
@@ -347,6 +383,7 @@ event_loop(struct drunk_config conf)
 		for (i = 0; i < nfds; i++) {
 			res  = process_event(tree, events[i], socks, efd);
 			if (res == 1) { /* A signal was catched */
+				res = 0;
 				goto cleanup;
 			} else if (res < 0) {
 				die("Please fix this, died on event loop\n");
@@ -355,8 +392,10 @@ event_loop(struct drunk_config conf)
 	}
 
 	cleanup:
-	fprintf(stderr, "Cleaning up\n");
-	btree_destroy(tree);
 	close(efd);
-	return 0;
+	err_cleanup:
+	fprintf(stderr, "Cleaning up\n");
+	sock_map_destroy(socks);
+	btree_destroy(tree);
+	return res;
 }

@@ -19,7 +19,7 @@ ifeq ($(DEBUG),)
 	# CFLAGS += -O2
 else
 	NAME = drunkcan-debug
-	CFLAGS += -g -DTEST
+	CFLAGS += -g
 endif
 
 CC = cc

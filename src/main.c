@@ -1,13 +1,16 @@
+#include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
-#include <errno.h>
+#include <unistd.h>
 
 #include <net/if.h>
+#include <linux/can.h>
 
 #include "util.h"
 #include "protocol.h"
+#include "canopen.h"
 
 
 #include "drunkcan.h"
@@ -44,13 +47,18 @@ main(int argc, char **argv)
 	strcpy(conf.prefix, "/tmp/");
 	memset(prefix, 0, 11);
 
+	conf.prot.protocol = CANOPEN;
 	while ((opt = getopt(argc, argv, "d:s:p:x:ht")) != -1) {
 		switch(opt) {
 		case 's':
 			strcpy(sock, optarg);
 			break;
 		case 'p': /* Protocol */
-			strcpy(sock, optarg);
+			if (strcasecmp("canopen", optarg) == 0) {
+				conf.prot.protocol = CANOPEN;
+			} else {
+				die("Protocol %s not supported", optarg);
+			}
 			break;
 		case 'd':
 			strcpy(conf.prefix, optarg);
@@ -65,16 +73,16 @@ main(int argc, char **argv)
 			printf("unknown option: %c\n", opt);
 			print_help();
 			return EXIT_FAILURE;
-		}
+                }
 	}
 
 	strcat(conf.prefix, prefix);
 	strcat(conf.prefix, sock);
-	conf.prot.protocol = CANOPEN;
 	conf.sock = sock;
 	switch (conf.prot.protocol) { /* TODO: Handle the getopt */
 	case CANOPEN:
 		strcat(conf.prefix, "_CANopen");
+		conf.prot = canopen_protocol();
 		break;
 	default: /* Should not reach */
 		die("Unknown protocol: %d\n", conf.prot);
@@ -84,5 +92,6 @@ main(int argc, char **argv)
 
 
 	err = event_loop(conf);
+	err = conf.prot.cleanup(conf.prot.protocol_state) < 0 ? -1 : err;
 	return err;
 }

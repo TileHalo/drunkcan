@@ -293,7 +293,9 @@ Node btree_remove_id(BinTree tree, int id);
 void
 btree_destroy(BinTree tree)
 {
-	btree_apply(tree, clean_tree, tree->prefix);
+	if (tree->root != -1) {
+		btree_apply(tree, clean_tree, tree->prefix);
+	}
 	remove(tree->prefix);
 	free(tree->tree);
 	if (tree->status) {
