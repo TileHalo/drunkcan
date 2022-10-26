@@ -298,6 +298,7 @@ process_event(BinTree tree, struct epoll_event ev, SockMap socks, int efd)
 	if (!q) {
 		warn("Could not find proper socket queue for fd %d\n",
 		     ev.data.fd);
+		return -1;
 	}
 	if (ev.events & (EPOLLIN | EPOLLPRI)) {
 		return process_in(ev.data.fd, cansock, tree, efd);
