@@ -11,13 +11,16 @@ SEDREP := sed -e 's/^\(.*\)\.o:/\1.d \1.o:/'
 SRC = src/util.c src/btree.c src/protocol.c src/canopen.c src/drunkcan.c \
       src/intarray.c src/workqueue.c
 OBJ = ${SRC:.c=.o}
-TEST = test/btree test/intarray
+TEST = test/btree test/intarray test/queue
 
-$(TEST): CFLAGS+=-g -DUNIT_TESTING
+$(TEST): CFLAGS+=-g -DUNIT_TESTING -fprofile-arcs -ftest-coverage
 $(TEST): % : %.o
-$(TEST): LDLIBS+=-lcmocka
-$(TEST): $(OBJ)
+$(TEST): LDLIBS+=-lcmocka -lgcov --coverage
 test/btree: LDFLAGS+=-Wl,--wrap=remove
+
+test/btree: src/btree.o
+test/queue: src/workqueue.o
+test/intarray: src/intarray.o
 
 include $(OBJ:.o=.d)
 include src/main.d
@@ -33,7 +36,7 @@ $(NAME): src/main.o $(OBJ)
 	$(CC) -c $(CFLAGS) $< -o $@
 
 clean: softclean
-	rm -rf */*.d
+	rm -rf */*.d */*.gcda */*.gcno
 
 softclean:
 	rm -rf */*.o $(NAME) $(NAME)-debug $(TEST)

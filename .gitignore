@@ -8,5 +8,8 @@ libdrunkcan.a
 libdrunkcan.so
 **/*.o
 **/*.d
+**/*.gcda
+**/*.gcno
 test/btree
+test/queue
 test/intarray
