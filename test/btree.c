@@ -1,14 +1,16 @@
 /* For license and copyright information see LICENSE file */
+#include <errno.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include <errno.h>
-#include <cmocka.h>
 #include <string.h>
+
+#include <linux/can.h>
+
+#include <cmocka.h>
 
 #include "../src/util.h"
 #include "../src/protocol.h"
@@ -125,9 +127,10 @@ static void
 btree_remove_fd_test(void **state)
 {
 	BinTree tree;
+	(void) tree;
 
 	tree = *state;
-
+	warn("Test not implemented");
 }
 
 static void
@@ -135,8 +138,10 @@ btree_remove_id_test(void **state)
 {
 	BinTree tree;
 
-	tree = *state;
+	(void) tree;
 
+	tree = *state;
+	warn("Test not implemented");
 }
 
 

@@ -7,14 +7,17 @@
 
 #include "workqueue.h"
 
+struct qdata {
+	struct qdata *next;
+	void *data;
+};
 
 struct queue {
 	int size; /* size in char *:s */
 	int i;
 	size_t data_size;
 
-	void *data;
-	void *head, *tail;
+	struct qdata *head, *tail;
 
 };
 
@@ -43,12 +46,8 @@ queue_init(unsigned int len, unsigned int data_size)
 	q->size = len;
 	q->data_size = data_size;
 	q->i = 0;
-	if (!(q->data = malloc(q->size * q->data_size))) {
-		free(q);
-		return NULL;
-	}
 	q->head = NULL;
-	q->tail = q->head;
+	q->tail = NULL;
 
 
 	return q;
@@ -61,14 +60,25 @@ queue_datasize(const Queue q)
 }
 
 int
-queue_push(Queue q, void *data)
+queue_enque(Queue q, void *data)
 {
-	if (q->i == q->size)
-		return -1; /* Not implemented yet */
+	if (!q->tail) {
+		q->head = malloc(sizeof(struct qdata));
+		q->tail = q->head;
+	} else {
+		q->tail->next = malloc(sizeof(struct qdata));
+		q->tail = q->tail->next;
+	}
+	if (!q->tail) {
+		return -1;
+	}
 
-	/* Extremely illegal, but I do not know any better */
-	q->tail = (char *)q->tail + q->data_size;
-	memcpy(q->tail, data, q->data_size);
+	q->tail->data = malloc(q->data_size);
+	if (!q->tail->data) {
+		return -1;
+	}
+	memcpy(q->tail->data, data, q->data_size);
+	q->tail->next = NULL;
 
 	q->i++;
 
@@ -76,26 +86,35 @@ queue_push(Queue q, void *data)
 }
 
 void *
-queue_try_pop(Queue q)
+queue_deque(Queue q)
 {
+	struct qdata *old;
 	void *ret;
 
-	if (!(ret = malloc(q->data_size)) || q->i == 0) {
+	if (!(old = q->head)) {
 		return NULL;
 	}
-
-	memcpy(ret, q->head, q->data_size);
-	q->head = (char *)q->head + q->data_size;
+	ret = old->data;
+	q->head = old->next;
+	free(old);
 	q->i--;
 
 	return ret;
+}
+void *
+queue_peek(Queue q)
+{
+	return q->head ? q->head->data : NULL;
 }
 
 void
 queue_destroy(Queue q)
 {
+	void *data;
 
-	free(q->data);
+	while ((data = queue_deque(q))) {
+		free(data);
+	}
 	free(q);
 
 }

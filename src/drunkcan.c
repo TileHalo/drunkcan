@@ -279,6 +279,7 @@ process_sock(int fd, int can, BinTree tree, int efd)
 static int
 process_event(BinTree tree, struct epoll_event ev, SockMap socks, int efd)
 {
+	int res;
 	Node cur;
 	Queue q;
 	int cansock;
@@ -302,13 +303,24 @@ process_event(BinTree tree, struct epoll_event ev, SockMap socks, int efd)
 	}
 	if (ev.events & (EPOLLIN | EPOLLPRI)) {
 		return process_in(ev.data.fd, cansock, tree, efd);
-	} else if (ev.events & (EPOLLOUT)) {
+	} else if (ev.events & EPOLLOUT) {
 		void *data;
-		if (!(data = queue_try_pop(q))) {
-			return 0;
-		}
-		if (write(ev.data.fd, data, queue_datasize(q)) < 0) {
-			return -1;
+		res = 0;
+		while ((data = queue_peek(q))) {
+			res = write(ev.data.fd, data, queue_datasize(q));
+			if (res < 0) {
+				switch (errno) {
+				case EAGAIN:
+					return 0;
+				default:
+					return -1;
+				}
+			}
+			/* Check for disasters */
+			if (!queue_deque(q)) {
+				die("Queue %d that should have elements"
+				     "failed to pop", ev.data.fd);
+			}
 		}
 	} else if (ev.events & (EPOLLRDHUP | EPOLLHUP)) {
 		return process_hup(ev.data.fd, tree, efd);

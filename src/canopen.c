@@ -2,8 +2,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "protocol.h"
+#include <linux/can.h>
 
+#include "protocol.h"
 #include "canopen.h"
 
 #define CANOPEN_BITMASK 127

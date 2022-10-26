@@ -1,10 +1,13 @@
 /* For license and copyright information see LICENSE file */
+/* NOTE: This test for currently unused piece of code */
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <linux/can.h>
 
 #include <errno.h>
 #include <cmocka.h>

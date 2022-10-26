@@ -7,8 +7,9 @@ typedef struct sock_map *SockMap;
 
 Queue queue_init(unsigned int len, unsigned int data_size);
 unsigned int queue_datasize(const Queue q);
-int queue_push(Queue q, void *data);
-void *queue_try_pop(Queue q);
+int queue_enque(Queue q, void *data);
+void *queue_deque(Queue q);
+void *queue_peek(Queue q); /* Return first without popping */
 void queue_destroy(Queue q);
 
 SockMap sock_map_init(void);

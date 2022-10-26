@@ -42,7 +42,7 @@ main(int argc, char **argv)
 	char prefix[11];
 	int opt, err;
 
-	strcpy(sock, "can0");
+	strcpy(sock, "vcan0");
 	memset(conf.prefix, 0, UNIX_NAMESIZE);
 	strcpy(conf.prefix, "/tmp/");
 	memset(prefix, 0, 11);

@@ -6,6 +6,8 @@
 #include <errno.h>
 #include <string.h>
 
+#include <linux/can.h>
+
 #include "util.h"
 #include "intarray.h"
 #include "protocol.h"
