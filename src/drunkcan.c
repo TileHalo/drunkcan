@@ -23,7 +23,6 @@
 #include "util.h"
 #include "protocol.h"
 #include "intarray.h"
-#include "btree.h"
 #include "workqueue.h"
 #include "drunkcan.h"
 
@@ -31,6 +30,7 @@
 #define MAX_CONN 16
 #define UNIX_NAMESIZE 109
 #define TBUF 4
+#define READBYTES 64
 
 
 static int init_sigfd(void);
@@ -41,13 +41,11 @@ static int set_epoll(int sock, int efd, int events);
 static int set_nonblock(int sock);
 static int close_socket(int fd, int efd);
 
-static void remove_fd(Node node, void *data);
-
-static int process_conn(Node node, int efd);
-static int process_in(int fd, int can, BinTree tree, int efd);
-static int process_hup(int fd, BinTree tree, int efd);
-static int process_can(int fd, BinTree tree, int efd);
-static int process_sock(int fd, int can, BinTree tree, int efd);
+static int process_conn(SocketMap map, int fd, int efd);
+static int process_in(SocketMap map, int fd, int efd);
+static int process_hup(SocketMap map, int fd, int efd);
+static int process_can(SocketMap map, int fd, int efd);
+static int process_sock(SocketMap map, int fd);
 
 static int sfd;
 
@@ -191,123 +189,155 @@ close_socket(int fd, int efd)
 	return close(fd);
 }
 
-static void
-remove_fd(Node node, void *data)
-{
-	int fd;
-
-	fd = *(int *)data;
-	if (node_client(node) == fd) {
-		node_set_client(node, -1);
-	}
-}
-
 static int
-process_conn(Node node, int efd)
+process_conn(SocketMap map, int fd, int efd)
 {
 	int conn;
 
-	conn = accept(node_fd(node), NULL, NULL);
-	set_epoll(conn, efd, 0);
-	node_set_client(node, conn);
-	close_socket(node_fd(node), efd);
-
-	return conn;
+	conn = accept(fd, NULL, NULL);
+	if (set_epoll(conn, efd, 0) < 0) {
+		return -1;
+	}
+	if (socketmap_set_listen(map, fd, 0) < 0) {
+		return -1;
+	}
+	return socketmap_update_fd(map, fd, conn);
 }
 
 static int
-process_in(int fd, int can, BinTree tree, int efd)
+process_in(SocketMap map, int fd, int efd)
 {
 
-	if (fd == can) {
-		return process_can(fd, tree, efd);
+	if (fd == socketmap_cansock(map)) {
+		return process_can(map, fd, efd);
 	} else {
-		return process_sock(fd, can, tree, efd);
+		return process_sock(map, fd);
 	}
 }
 
 static int
-process_hup(int fd, BinTree tree, int efd)
+process_hup(SocketMap map, int fd, int efd)
 {
+	char sock[UNIX_NAMESIZE + 11];
+	int conn;
+	Queue q;
+
 	close_socket(fd, efd);
-	btree_apply(tree, remove_fd, &fd);
+
+	if (fd == socketmap_cansock(map)) {
+		return -1;
+	}
+
+	if (!(q = socketmap_find(map, fd))) {
+		return -1;
+	}
+	if (queue_listen(q)) {
+		return -1;
+	}
+	socketmap_set_listen(map, fd, 1);
+
+	sprintf(sock, "%s_%d", socketmap_prefix(map), queue_id(q));
+	conn = init_socket(sock);
+	efd = set_epoll(conn, efd, 0);
+	listen(conn, MAX_CONN);
+
+	socketmap_update_fd(map, fd, conn);
 
 	return 0;
 
 }
 
 static int
-process_can(int fd, BinTree tree, int efd)
+process_can(SocketMap map, int fd, int efd)
 {
-	int len, id;
+	int id, res;
 	struct can_frame fr;
-	Node node;
+	struct protocol_conf *prot;
+	void *data;
+	Queue q;
 
-	len = read(fd, &fr, sizeof(fr));
-	if (len < 0) {
-		int e;
-		e = errno;
-		die("can raw socket read: %s", strerror(e));
-		return 1;
+	prot = socketmap_protocol(map);
+	data = NULL; /* Otherwise process_can complains */
+	while ((res = read(fd, &fr, sizeof(fr))) > 0) {
+		id = prot->get_id(fr.can_id);
+		if (!(q = socketmap_find_by_id(map, id))) {
+			char sock[UNIX_NAMESIZE + 11];
+			int conn;
+
+			sprintf(sock, "%s_%d", socketmap_prefix(map), id);
+			conn = init_socket(sock);
+			efd = set_epoll(conn, efd, 0);
+			listen(conn, MAX_CONN);
+
+			q = socketmap_add(map, prot->frame_size, conn, id);
+			if (!q) {
+				return -1;
+			}
+		}
+		res = prot->process_can(fr, data, prot->state);
+		if (res > 0) {
+			if(queue_enque(q, data) < 0) {
+				return -1;
+			}
+		} else if (res < 0) {
+			return -1;
+		}
 	}
 
-	id = tree_protocol(tree)->get_id(fr.can_id);
+	return res == EAGAIN ? 0 : -1;
+}
 
-	if ((node = btree_search_id(tree, id))) {
-		/* TODO: Create a message queue here */
-	} else {
-		char sock[UNIX_NAMESIZE + 11];
-		int conn;
+static int
+process_sock(SocketMap map, int fd)
+{
+	int res, id;
+	struct can_frame frame;
+	struct protocol_conf *prot;
+	void *data;
 
-		sprintf(sock, "%s_%d", tree_prefix(tree), id);
-		conn = init_socket(sock);
-		efd = set_epoll(conn, efd, 0);
-		listen(conn, MAX_CONN);
+	if (!(data = malloc(READBYTES))) {
+		res = errno;
+		warn("Malloc failed at process_sock: %s\n", strerror(res));
+		return -1;
+	}
 
-		btree_insert(tree, id, conn);
+	id = socketmap_find_id(map, fd);
+
+	while ((res = read(fd, data, READBYTES)) > 0) {
+		prot = socketmap_protocol(map);
+		if (!prot->validate_sock(data, res, prot->state)) {
+			continue;
+		}
+		res = prot->process_sock(&frame, data, res, id, prot->state);
 	}
 
 	return 0;
 }
-static int
-process_sock(int fd, int can, BinTree tree, int efd)
-{
-	warn("Not implemented: %d, %s, %d", can, tree_prefix(tree), efd);
-	return fd;
-}
 
 static int
-process_event(BinTree tree, struct epoll_event ev, SocketMap socks, int efd)
+process_event(struct epoll_event ev, SocketMap map, int efd)
 {
 	int res;
 	(void) res;
-	Node cur;
 	Queue q;
-	int cansock;
 
 
-	cansock = socketmap_cansock(socks);
-	cur = btree_search_fd(tree, ev.data.fd);
-
-	if (cur) { /* New connection */
-		process_conn(cur, efd);
+	q = socketmap_find(map, ev.data.fd);
+	if (q && queue_listen(q)) { /* New connection */
+		process_conn(map, ev.data.fd, efd);
 		return 0;
 	} else if (ev.data.fd == sfd) {
 		return 1;
 	}
 
-	q = socketmap_find(socks, ev.data.fd);
-	if (!q) {
-		warn("Could not find proper socket queue for fd %d\n",
-		     ev.data.fd);
-		return -1;
+	if (ev.events & EPOLLIN) {
+		return process_in(map, ev.data.fd, efd);
 	}
-	if (ev.events & (EPOLLIN | EPOLLPRI)) {
-		return process_in(ev.data.fd, cansock, tree, efd);
-	} else if (ev.events & EPOLLOUT) {
-		return socketmap_enable_write(socks, ev.data.fd);
-	} else if (ev.events & (EPOLLRDHUP | EPOLLHUP)) {
-		return process_hup(ev.data.fd, tree, efd);
+	if (ev.events & EPOLLOUT) {
+		return socketmap_enable_write(map, ev.data.fd);
+	}
+	if (ev.events & (EPOLLRDHUP | EPOLLHUP)) {
+		return process_hup(map, ev.data.fd, efd);
 	} else {
 		warn("Event that should not happen: %x\n",
 		     ev.events);
@@ -320,23 +350,16 @@ int
 event_loop(struct drunk_config conf)
 {
 	int nfds, i, conn, cansock, efd, res, e;
-	SocketMap socks;
-	BinTree tree;
+	SocketMap map;
 	struct epoll_event events[MAX_EVENTS];
 
 
-	if (!(socks = socketmap_init(20))) {
+	if (!(map = socketmap_init(20))) {
 		warn("Failed to initialize socket map: %s", strerror(errno));
 		return -1;
 	}
-	if (!(tree = btree_init(2048, conf.prefix))) {
-		e = errno;
-		warn("Failed to initialize protocol tree: %s", strerror(e));
-		socketmap_destroy(socks);
-		return -1;
-	}
-
-	btree_set_protocol(tree, conf.prot);
+	socketmap_set_protocol(map, conf.prot);
+	socketmap_set_prefix(map, conf.prefix);
 
 	/* Set up can socket */
 	cansock = init_can(conf.sock);
@@ -351,7 +374,7 @@ event_loop(struct drunk_config conf)
 		goto err_cleanup;
 	}
 
-	if (!socketmap_add_can(socks, sizeof(struct can_frame), cansock)) {
+	if (!socketmap_add_can(map, sizeof(struct can_frame), cansock)) {
 		res = -1;
 		goto cleanup;
 	}
@@ -369,15 +392,16 @@ event_loop(struct drunk_config conf)
 		goto cleanup;
 	}
 
-	if (listen(conn, MAX_CONN) < -1) {
+	if (listen(conn, MAX_CONN) < 0) {
+		res = -1;
 		e = errno;
+		warn("Error while listening: %s\n", strerror(e));
+		goto cleanup;
 	}
-	if (!socketmap_add_can(socks, conf.prot.frame_size, cansock)) {
+	if (!socketmap_add(map, conf.prot.frame_size, conn, -1)) {
 		res = -1;
 		goto cleanup;
 	}
-	btree_insert(tree, 0, conn); /* Make going through fds easier */
-
 	sfd = init_sigfd();
 	efd = set_epoll(sfd, efd, 0);
 
@@ -387,7 +411,7 @@ event_loop(struct drunk_config conf)
 			goto cleanup;
 		}
 		for (i = 0; i < nfds; i++) {
-			res  = process_event(tree, events[i], socks, efd);
+			res  = process_event(events[i], map, efd);
 			if (res == 1) { /* A signal was catched */
 				res = 0;
 				goto cleanup;
@@ -395,7 +419,7 @@ event_loop(struct drunk_config conf)
 				die("Please fix this, died on event loop\n");
 			}
 		}
-		if (socketmap_flush(socks) < 0) {
+		if (socketmap_flush(map) < 0) {
 			int e;
 			e = errno;
 			warn("Problem during flush: %s\n", strerror(e));
@@ -408,7 +432,6 @@ event_loop(struct drunk_config conf)
 	close(efd);
 	err_cleanup:
 	fprintf(stderr, "Cleaning up\n");
-	socketmap_destroy(socks);
-	btree_destroy(tree);
+	socketmap_destroy(map);
 	return res;
 }

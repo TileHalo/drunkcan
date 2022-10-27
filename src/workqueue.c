@@ -9,6 +9,8 @@
 #include <unistd.h>
 
 #include "util.h"
+#include "protocol.h"
+#include "btree.h"
 #include "workqueue.h"
 
 
@@ -18,26 +20,32 @@ struct queue {
 	size_t size;
 	unsigned int head;
 	unsigned int tail;
+	int id;
+	int *listen;
 
 	void *data;
 };
 
 struct socketmap_node {
 	int fd;
+	int id;
+	int listen;
 	int writable;
 	struct queue q;
-	unsigned int i;
 };
 
 struct socketmap {
 	int can;
 	int size;
 	int i;
+	char prefix[UNIX_NAMESIZE];
+	struct protocol_conf protocol;
 	struct socketmap_node *list;
 };
 
 static void _queue_init(Queue q, unsigned int data_size);
 static struct socketmap_node *socketmap_find_node(SocketMap map, int fd);
+static struct socketmap_node *socketmap_find_node_id(SocketMap map, int id);
 
 
 static void
@@ -65,6 +73,20 @@ socketmap_node *socketmap_find_node(SocketMap map, int fd)
 
 }
 
+static struct
+socketmap_node *socketmap_find_node_id(SocketMap map, int id)
+{
+	int i;
+
+	for (i = 0; i < map->i; i++) {
+		if (map->list[i].id == id) {
+			return &map->list[i];
+		}
+	}
+	return NULL;
+
+}
+
 Queue
 queue_init(unsigned int len, unsigned int data_size)
 {
@@ -85,6 +107,18 @@ unsigned int
 queue_datasize(const Queue q)
 {
 	return q->data_size;
+}
+
+int
+queue_listen(Queue q)
+{
+	return *q->listen;
+}
+
+int
+queue_id(Queue q)
+{
+	return q->id;
 }
 
 int
@@ -157,7 +191,7 @@ socketmap_init(int size)
 }
 
 Queue
-socketmap_add(SocketMap map, unsigned int data_size, int fd)
+socketmap_add(SocketMap map, unsigned int data_size, int fd, int id)
 {
 	Queue q;
 
@@ -170,8 +204,12 @@ socketmap_add(SocketMap map, unsigned int data_size, int fd)
 	}
 
 	map->list[map->i].fd = fd;
+	map->list[map->i].id = id;
+	map->list[map->i].writable = 0;
+	map->list[map->i].listen = 1;
 	_queue_init(&map->list[map->i].q, data_size);
-	map->list[map->i].i = map->i;
+	map->list[map->i].q.id = id;
+	map->list[map->i].q.listen = &map->list[map->i].listen;
 
 	q = &map->list[map->i].q;
 	map->i++;
@@ -184,7 +222,7 @@ socketmap_add_can(SocketMap map, unsigned int data_size, int fd)
 {
 	map->can = fd;
 
-	return socketmap_add(map, data_size, fd);
+	return socketmap_add(map, data_size, fd, 0);
 }
 
 int
@@ -200,10 +238,37 @@ socketmap_enable_write(SocketMap map, int fd)
 
 	if (!(n = socketmap_find_node(map, fd))) {
 		return -1;
+	} else if (n->listen) {
+		return -1;
 	}
 
 	n->writable = 1;
 
+	return 0;
+}
+
+int
+socketmap_set_listen(SocketMap map, int fd, int listen)
+{
+	struct socketmap_node *n;
+
+	if (!(n = socketmap_find_node(map, fd))) {
+		return -1;
+	}
+
+	n->listen = listen;
+
+	return 0;
+}
+
+int
+socketmap_update_fd(SocketMap map, int fd, int new)
+{
+	struct socketmap_node *n;
+	if (!(n = socketmap_find_node(map, fd))) {
+		return -1;
+	}
+	n->fd = new;
 	return 0;
 }
 
@@ -215,7 +280,7 @@ socketmap_flush(SocketMap map)
 	void *data;
 
 	for (i = 0; i < map->i; i++) {
-		if (map->list[i].writable) {
+		if (map->list[i].writable && !map->list[i].listen) {
 			res = 0;
 			fd = map->list[i].fd;
 			q = &map->list[i].q;
@@ -249,6 +314,28 @@ socketmap_find(SocketMap map, int fd)
 	return &n->q;
 }
 
+Queue
+socketmap_find_by_id(SocketMap map, int id)
+{
+	struct socketmap_node *n;
+
+	if (!(n = socketmap_find_node_id(map, id))) {
+		return NULL;
+	}
+	return &n->q;
+}
+
+int
+socketmap_find_id(SocketMap map, int fd)
+{
+	struct socketmap_node *n;
+
+	if (!(n = socketmap_find_node_id(map, fd))) {
+		return -1;
+	}
+	return n->id;
+}
+
 void
 socketmap_destroy(SocketMap map)
 {
@@ -260,4 +347,33 @@ socketmap_destroy(SocketMap map)
 
 	free(map->list);
 	free(map);
+}
+
+void
+socketmap_set_protocol(SocketMap map, struct protocol_conf conf)
+{
+	map->protocol = conf;
+}
+
+struct protocol_conf *
+socketmap_protocol(SocketMap map)
+{
+	return &map->protocol;
+}
+
+char *
+socketmap_prefix(SocketMap map)
+{
+	return map->prefix;
+}
+
+int
+socketmap_set_prefix(SocketMap map, const char *prefix)
+{
+
+	if (strlen(prefix) > UNIX_NAMESIZE - 1) {
+		return -1;
+	}
+	strcpy(map->prefix, prefix);
+	return 0;
 }

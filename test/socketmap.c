@@ -10,6 +10,10 @@
 #include <errno.h>
 #include <cmocka.h>
 
+struct protocol_conf {
+	int _i;
+};
+
 #include "../src/util.h"
 #include "../src/workqueue.h"
 
@@ -51,7 +55,7 @@ socketmap_add_test(void **state)
 
 	map = *state;
 	for (i = 0; i < 13; i++) {
-		assert_non_null(socketmap_add(map, DATASIZE, data[i]));
+		assert_non_null(socketmap_add(map, DATASIZE, data[i], i));
 	}
 }
 
@@ -66,7 +70,7 @@ socketmap_find_test(void **state)
 	map = *state;
 
 	for (i = 0; i < 13; i++) {
-		q = socketmap_add(map, DATASIZE, data[i]);
+		q = socketmap_add(map, DATASIZE, data[i], i);
 		assert_non_null(q);
 		assert_int_not_equal(-1, queue_enque(q, data + i));
 	}

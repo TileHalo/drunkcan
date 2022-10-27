@@ -10,6 +10,10 @@
 #include <errno.h>
 #include <cmocka.h>
 
+struct protocol_conf {
+	int _i;
+};
+
 #include "../src/util.h"
 #include "../src/workqueue.h"
 

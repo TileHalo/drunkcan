@@ -92,6 +92,6 @@ main(int argc, char **argv)
 
 
 	err = event_loop(conf);
-	err = conf.prot.cleanup(conf.prot.protocol_state) < 0 ? -1 : err;
+	err = conf.prot.cleanup(conf.prot.state) < 0 ? -1 : err;
 	return err;
 }
