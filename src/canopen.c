@@ -25,7 +25,7 @@ cleanup(void *state)
 static int
 get_id(int id)
 {
-	if (id > CANOPEN_BITMASK) {
+	if (id > 2047) {
 		return id & CANOPEN_EFF_BITMASK;
 	} else {
 		return id & CANOPEN_BITMASK;

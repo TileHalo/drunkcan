@@ -22,8 +22,8 @@ static int btree_teardown(void **state);
 static void btree_insert_test(void **state);
 static void btree_search_fd_test(void **state);
 static void btree_search_id_test(void **state);
-static void btree_remove_fd_test(void **state);
-static void btree_remove_id_test(void **state);
+// static void btree_remove_fd_test(void **state);
+// static void btree_remove_id_test(void **state);
 
 int __wrap_remove(const char *__filename);
 
@@ -123,26 +123,26 @@ btree_search_id_test(void **state)
 
 }
 
-static void
-btree_remove_fd_test(void **state)
-{
-	BinTree tree;
-	(void) tree;
+// static void
+// btree_remove_fd_test(void **state)
+// {
+// 	BinTree tree;
+// 	(void) tree;
 
-	tree = *state;
-	warn("Test not implemented");
-}
+// 	tree = *state;
+// 	warn("Test not implemented");
+// }
 
-static void
-btree_remove_id_test(void **state)
-{
-	BinTree tree;
+// static void
+// btree_remove_id_test(void **state)
+// {
+// 	BinTree tree;
 
-	(void) tree;
+// 	(void) tree;
 
-	tree = *state;
-	warn("Test not implemented");
-}
+// 	tree = *state;
+// 	warn("Test not implemented");
+// }
 
 
 int
@@ -164,10 +164,10 @@ main(void)
 						btree_setup, btree_teardown),
 		cmocka_unit_test_setup_teardown(btree_search_id_test,
 						btree_setup, btree_teardown),
-		cmocka_unit_test_setup_teardown(btree_remove_fd_test,
-						btree_setup, btree_teardown),
-		cmocka_unit_test_setup_teardown(btree_remove_id_test,
-						btree_setup, btree_teardown),
+		// cmocka_unit_test_setup_teardown(btree_remove_fd_test,
+		// 				btree_setup, btree_teardown),
+		// cmocka_unit_test_setup_teardown(btree_remove_id_test,
+		// 				btree_setup, btree_teardown),
 	};
 
 	btree = cmocka_run_group_tests_name("Btree ID tests",

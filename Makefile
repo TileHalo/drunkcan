@@ -11,15 +11,20 @@ SEDREP := sed -e 's/^\(.*\)\.o:/\1.d \1.o:/'
 SRC = src/util.c src/btree.c src/protocol.c src/canopen.c src/drunkcan.c \
       src/intarray.c src/workqueue.c
 OBJ = ${SRC:.c=.o}
-TEST = test/btree test/intarray test/queue
+TEST = test/btree test/intarray test/queue test/socketmap
 
-$(TEST): CFLAGS+=-g -DUNIT_TESTING -fprofile-arcs -ftest-coverage
+ifeq ($(COVERAGE),1)
+$(TEST): CFLAGS+=-DUNIT_TESTING -fprofile-arcs -ftest-coverage
+$(TEST): LDLIBS+=-lgcov --coverage
+endif
+
+$(TEST): CFLAGS+=-g -DUNIT_TESTING
 $(TEST): % : %.o
-$(TEST): LDLIBS+=-lcmocka -lgcov --coverage
+$(TEST): LDLIBS+=-lcmocka
 test/btree: LDFLAGS+=-Wl,--wrap=remove
 
 test/btree: src/btree.o
-test/queue: src/workqueue.o
+test/queue test/socketmap: src/workqueue.o
 test/intarray: src/intarray.o
 
 include $(OBJ:.o=.d)

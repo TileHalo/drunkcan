@@ -277,15 +277,16 @@ process_sock(int fd, int can, BinTree tree, int efd)
 }
 
 static int
-process_event(BinTree tree, struct epoll_event ev, SockMap socks, int efd)
+process_event(BinTree tree, struct epoll_event ev, SocketMap socks, int efd)
 {
 	int res;
+	(void) res;
 	Node cur;
 	Queue q;
 	int cansock;
 
 
-	cansock = sock_map_cansock(socks);
+	cansock = socketmap_cansock(socks);
 	cur = btree_search_fd(tree, ev.data.fd);
 
 	if (cur) { /* New connection */
@@ -295,7 +296,7 @@ process_event(BinTree tree, struct epoll_event ev, SockMap socks, int efd)
 		return 1;
 	}
 
-	q = sock_map_find(socks, ev.data.fd);
+	q = socketmap_find(socks, ev.data.fd);
 	if (!q) {
 		warn("Could not find proper socket queue for fd %d\n",
 		     ev.data.fd);
@@ -304,24 +305,7 @@ process_event(BinTree tree, struct epoll_event ev, SockMap socks, int efd)
 	if (ev.events & (EPOLLIN | EPOLLPRI)) {
 		return process_in(ev.data.fd, cansock, tree, efd);
 	} else if (ev.events & EPOLLOUT) {
-		void *data;
-		res = 0;
-		while ((data = queue_peek(q))) {
-			res = write(ev.data.fd, data, queue_datasize(q));
-			if (res < 0) {
-				switch (errno) {
-				case EAGAIN:
-					return 0;
-				default:
-					return -1;
-				}
-			}
-			/* Check for disasters */
-			if (!queue_deque(q)) {
-				die("Queue %d that should have elements"
-				     "failed to pop", ev.data.fd);
-			}
-		}
+		return socketmap_enable_write(socks, ev.data.fd);
 	} else if (ev.events & (EPOLLRDHUP | EPOLLHUP)) {
 		return process_hup(ev.data.fd, tree, efd);
 	} else {
@@ -336,21 +320,23 @@ int
 event_loop(struct drunk_config conf)
 {
 	int nfds, i, conn, cansock, efd, res, e;
-	SockMap socks;
+	SocketMap socks;
 	BinTree tree;
 	struct epoll_event events[MAX_EVENTS];
 
 
-	if (!(socks = sock_map_init())) {
+	if (!(socks = socketmap_init(20))) {
 		warn("Failed to initialize socket map: %s", strerror(errno));
 		return -1;
 	}
 	if (!(tree = btree_init(2048, conf.prefix))) {
 		e = errno;
 		warn("Failed to initialize protocol tree: %s", strerror(e));
-		sock_map_destroy(socks);
+		socketmap_destroy(socks);
 		return -1;
 	}
+
+	btree_set_protocol(tree, conf.prot);
 
 	/* Set up can socket */
 	cansock = init_can(conf.sock);
@@ -364,7 +350,11 @@ event_loop(struct drunk_config conf)
 		res = -1;
 		goto err_cleanup;
 	}
-	res = sock_map_add_can(socks, sizeof(struct can_frame), cansock);
+
+	if (!socketmap_add_can(socks, sizeof(struct can_frame), cansock)) {
+		res = -1;
+		goto cleanup;
+	}
 
 	conn = init_socket(conf.prefix);
 	if (conn < 0) {
@@ -382,7 +372,10 @@ event_loop(struct drunk_config conf)
 	if (listen(conn, MAX_CONN) < -1) {
 		e = errno;
 	}
-	res = sock_map_add_can(socks, conf.prot.frame_size, cansock);
+	if (!socketmap_add_can(socks, conf.prot.frame_size, cansock)) {
+		res = -1;
+		goto cleanup;
+	}
 	btree_insert(tree, 0, conn); /* Make going through fds easier */
 
 	sfd = init_sigfd();
@@ -402,13 +395,20 @@ event_loop(struct drunk_config conf)
 				die("Please fix this, died on event loop\n");
 			}
 		}
+		if (socketmap_flush(socks) < 0) {
+			int e;
+			e = errno;
+			warn("Problem during flush: %s\n", strerror(e));
+			res = -1;
+			goto cleanup;
+		}
 	}
 
 	cleanup:
 	close(efd);
 	err_cleanup:
 	fprintf(stderr, "Cleaning up\n");
-	sock_map_destroy(socks);
+	socketmap_destroy(socks);
 	btree_destroy(tree);
 	return res;
 }

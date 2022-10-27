@@ -88,7 +88,8 @@ queue_remove_test(void **state)
 		queue_enque(q, &data[i]);
 	}
 	for (i = 0; i < 10; i++) {
-		assert_non_null((res = queue_deque(q)));
+		res = queue_deque(q);
+		assert_non_null(res);
 		assert_int_equal(*res, data[i]);
 	}
 
