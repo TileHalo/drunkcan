@@ -53,6 +53,9 @@ test: $(TEST)
 testsuite: $(TEST)
 	-$(patsubst %,$(CHECKTOOL) $(CHECKFLAGS) ./%;,$^)
 
+coverage: debug
+	@COVERAGE=1 $(MAKE) test
+
 install: all
 	mkdir -p "$(DESTDIR)$(PREFIX)/bin"
 	cp -f $(NAME) "$(DESTDIR)$(PREFIX)/bin"
