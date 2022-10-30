@@ -22,7 +22,6 @@
 
 #include "util.h"
 #include "protocol.h"
-#include "intarray.h"
 #include "workqueue.h"
 #include "drunkcan.h"
 

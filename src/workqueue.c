@@ -10,7 +10,6 @@
 
 #include "util.h"
 #include "protocol.h"
-#include "btree.h"
 #include "workqueue.h"
 
 

@@ -8,10 +8,9 @@ all: $(NAME)
 
 SEDREP := sed -e 's/^\(.*\)\.o:/\1.d \1.o:/'
 
-SRC = src/util.c src/btree.c src/protocol.c src/canopen.c src/drunkcan.c \
-      src/intarray.c src/workqueue.c
+SRC = src/util.c src/protocol.c src/canopen.c src/drunkcan.c src/workqueue.c
 OBJ = ${SRC:.c=.o}
-TEST = test/btree test/intarray test/queue test/socketmap
+TEST = test/queue test/socketmap
 
 ifeq ($(COVERAGE),1)
 $(TEST): CFLAGS+=-DUNIT_TESTING -fprofile-arcs -ftest-coverage
@@ -21,11 +20,7 @@ endif
 $(TEST): CFLAGS+=-g -DUNIT_TESTING
 $(TEST): % : %.o
 $(TEST): LDLIBS+=-lcmocka
-test/btree: LDFLAGS+=-Wl,--wrap=remove
-
-test/btree: src/btree.o
 test/queue test/socketmap: src/workqueue.o
-test/intarray: src/intarray.o
 
 include $(OBJ:.o=.d)
 include src/main.d

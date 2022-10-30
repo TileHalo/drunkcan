@@ -3,6 +3,7 @@
 #define DRUNKCAN_UTIL_H
 
 #define LEN(a) (sizeof (a)/sizeof(*a))
+#define UNIX_NAMESIZE 109
 
 #ifndef MAX
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
