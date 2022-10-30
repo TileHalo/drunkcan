@@ -11,10 +11,6 @@
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #endif
 
-#ifdef TEST
-#include "../test/dynamic.h"
-#endif
-
 void warn(const char *, ...);
 void die(const char *, ...);
 ssize_t getline(char **, size_t *, FILE *);
