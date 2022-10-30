@@ -294,8 +294,7 @@ socketmap_flush(SocketMap map)
 			if (res < 0 && errno == EAGAIN) {
 				map->list[i].writable = 0;
 			} else if (res < 0) {
-				warn("Problem writing to file descriptor %d:"
-				     " %s\n", fd, errno);
+				warn("Problem writing to file descriptor %d:", fd);
 			}
 		}
 	}

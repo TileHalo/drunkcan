@@ -84,18 +84,14 @@ init_can(const char *sock)
 
 	s = socket(PF_CAN, SOCK_RAW, CAN_RAW);
 	if (s < 0) {
-		int e;
-		e = errno;
-		warn("Error while initializing CAN-socket: %s", strerror(e));
+		warn("Error while initializing CAN-socket:");
 		return -1;
 	}
 	memset(&addr, 0, sizeof(struct sockaddr_can));
 
 	strcpy(ifr.ifr_name, sock);
 	if (ioctl(s, SIOCGIFINDEX, &ifr) < 0) {
-		int e;
-		e = errno;
-		warn("ioctl error on socket %s: %s", sock, strerror(e));
+		warn("ioctl error on socket %s:", sock);
 		return -1;
 	}
 
@@ -103,9 +99,7 @@ init_can(const char *sock)
 	addr.can_ifindex = ifr.ifr_ifindex;
 
 	if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-		int e;
-		e = errno;
-		warn("Error while binding CAN-socket %s: %s", sock, strerror(e));
+		warn("Error while binding CAN-socket %s:", sock);
 		return -1;
 	}
 
@@ -119,20 +113,15 @@ init_socket(const char *sock)
 
 	s = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (s < 0) {
-		int e;
-		e = errno;
-		warn("Error while initializing Unix-socket: %s", strerror(e));
+		warn("Error while initializing Unix-socket:");
 		return -1;
 	}
 
 	addr.sun_family = AF_UNIX;
 	strcpy(addr.sun_path, sock);
 	if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-		int e;
-		e = errno;
-		warn("Error while binding Unix-socket %s: %s",
-		    addr.sun_path, strerror(e));
-		return -1;
+                warn("Error while binding Unix-socket %s:", addr.sun_path);
+                return -1;
 	}
 
 	return s;
@@ -145,18 +134,12 @@ set_epoll(int sock, int efd, int events)
 
 
 	if (set_nonblock(sock) == -1) {
-		int e;
-		e = errno;
-		warn("Error while setting nonblock: %s", strerror(e));
+		warn("Error while setting nonblock:");
 		return -1;
 	}
 	if (efd < 0) {
 		if ((efd = epoll_create1(0)) == -1) {
-			int e;
-			e = errno;
-			/* Same here */
-			warn("Error while creating epoll instance: %s",
-			    strerror(e));
+			warn("Error while creating epoll instance:");
 			return -1;
 		}
 	}
@@ -165,10 +148,7 @@ set_epoll(int sock, int efd, int events)
 	ev.events |= events;
 	ev.data.fd = sock;
 	if (epoll_ctl(efd, EPOLL_CTL_ADD, sock, &ev) == -1) {
-		int e;
-		e = errno;
-		warn("Error while epoll_ctl: %s",
-		    strerror(e));
+		warn("Error while epoll_ctl:");
 		return -1;
 	}
 
@@ -296,8 +276,7 @@ process_sock(SocketMap map, int fd)
 	void *data;
 
 	if (!(data = malloc(READBYTES))) {
-		res = errno;
-		warn("Malloc failed at process_sock: %s\n", strerror(res));
+		warn("Malloc failed at process_sock:");
 		return -1;
 	}
 
@@ -349,13 +328,13 @@ process_event(struct epoll_event ev, SocketMap map, int efd)
 int
 event_loop(struct drunk_config conf)
 {
-	int nfds, i, conn, cansock, efd, res, e;
+	int nfds, i, conn, cansock, efd, res;
 	SocketMap map;
 	struct epoll_event events[MAX_EVENTS];
 
 
 	if (!(map = socketmap_init(20))) {
-		warn("Failed to initialize socket map: %s", strerror(errno));
+		warn("Failed to initialize socket map:");
 		return -1;
 	}
 	socketmap_set_protocol(map, conf.prot);
@@ -394,8 +373,7 @@ event_loop(struct drunk_config conf)
 
 	if (listen(conn, MAX_CONN) < 0) {
 		res = -1;
-		e = errno;
-		warn("Error while listening: %s\n", strerror(e));
+		warn("Error while listening:");
 		goto cleanup;
 	}
 	if (!socketmap_add(map, conf.prot.frame_size, conn, -1)) {
@@ -420,9 +398,7 @@ event_loop(struct drunk_config conf)
 			}
 		}
 		if (socketmap_flush(map) < 0) {
-			int e;
-			e = errno;
-			warn("Problem during flush: %s\n", strerror(e));
+			warn("Problem during flush:");
 			res = -1;
 			goto cleanup;
 		}
