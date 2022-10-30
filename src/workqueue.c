@@ -42,17 +42,17 @@ struct socketmap {
 	struct socketmap_node *list;
 };
 
-static void _queue_init(Queue q, unsigned int data_size);
+static void _queue_init(Queue q, unsigned int len, unsigned int data_size);
 static struct socketmap_node *socketmap_find_node(SocketMap map, int fd);
 static struct socketmap_node *socketmap_find_node_id(SocketMap map, int id);
 
 
 static void
-_queue_init(Queue q, unsigned int data_size)
+_queue_init(Queue q, unsigned int len, unsigned int data_size)
 {
 	q->data_size = data_size;
 	q->i = 0;
-	q->size = 10;
+	q->size = len;
 	q->head = 0;
 	q->tail = 0;
 	q->data = malloc(q->data_size * q->size);
@@ -89,14 +89,13 @@ socketmap_node *socketmap_find_node_id(SocketMap map, int id)
 Queue
 queue_init(unsigned int len, unsigned int data_size)
 {
-	(void) len;
 	struct queue *q;
 
 	if (!(q = malloc(sizeof(*q)))) {
 		return NULL;
 	}
 
-	_queue_init(q, data_size);
+	_queue_init(q, len, data_size);
 
 
 	return q;
@@ -123,17 +122,18 @@ queue_id(Queue q)
 int
 queue_enque(Queue q, void *data)
 {
-	if (q->i == q->size) {
-		q->size *= 2;
-		q->data = realloc(q->data, q->size * q->data_size);
-	}
 
-	q->tail = (q->head + q->i) % q->size;
+	q->tail = (q->tail + 1) % q->size;
+	if (q->tail == q->head)
+		q->head = (q->head + 1) % q->size;
+
 
 	/* Very ugly, please fix */
 	memcpy((char *)q->data + q->tail * q->data_size, data, q->data_size);
 
-	return ++q->i;
+
+	q->i = MIN(q->i + 1, q->size);
+	return q->i;
 }
 
 void *
@@ -147,14 +147,12 @@ queue_deque(Queue q)
 
 	ret = (char *)q->data + q->head * q->data_size;
 
-	q->head++;
-	if (q->head == q->size) {
-		q->head = 0;
-	}
+	q->head = (q->head + 1)  % q->size;
 	q->i--;
 
 	return ret;
 }
+
 void *
 queue_peek(Queue q)
 {
@@ -206,7 +204,7 @@ socketmap_add(SocketMap map, unsigned int data_size, int fd, int id)
 	map->list[map->i].id = id;
 	map->list[map->i].writable = 0;
 	map->list[map->i].listen = 1;
-	_queue_init(&map->list[map->i].q, data_size);
+	_queue_init(&map->list[map->i].q, 30, data_size);
 	map->list[map->i].q.id = id;
 	map->list[map->i].q.listen = &map->list[map->i].listen;
 
