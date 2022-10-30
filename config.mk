@@ -16,10 +16,10 @@ CHECKTOOL = valgrind
 CHECKFLAGS = --leak-check=full --track-origins=yes -s
 
 ifeq ($(DEBUG),)
-	# CFLAGS += -O2
+	CFLAGS += -O2
 else
 	NAME = drunkcan-debug
-	CFLAGS += -g
+	CFLAGS += -g -DDEBUG
 endif
 
 CC = cc
