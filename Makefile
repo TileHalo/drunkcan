@@ -2,6 +2,7 @@
 .POSIX:
 
 include config.mk
+include test.mk
 
 all: $(NAME)
 .PHONY: test debug clean dist install all softclean
@@ -10,17 +11,7 @@ SEDREP := sed -e 's/^\(.*\)\.o:/\1.d \1.o:/'
 
 SRC = src/util.c src/protocol.c src/canopen.c src/drunkcan.c src/workqueue.c
 OBJ = ${SRC:.c=.o}
-TEST = test/queue test/socketmap
 
-ifeq ($(COVERAGE),1)
-$(TEST): CFLAGS+=-DUNIT_TESTING -fprofile-arcs -ftest-coverage
-$(TEST): LDLIBS+=-lgcov --coverage
-endif
-
-$(TEST): CFLAGS+=-g -DUNIT_TESTING
-$(TEST): % : %.o
-$(TEST): LDLIBS+=-lcmocka
-test/queue test/socketmap: src/workqueue.o
 
 include $(OBJ:.o=.d)
 include src/main.d
@@ -53,7 +44,7 @@ test: $(TEST)
 testsuite: $(TEST)
 	-$(patsubst %,$(CHECKTOOL) $(CHECKFLAGS) ./%;,$^)
 
-coverage: debug
+coverage: clean
 	@COVERAGE=1 $(MAKE) test
 
 install: all
