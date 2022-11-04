@@ -11,7 +11,7 @@
 #include "util.h"
 #include "protocol.h"
 #include "canopen.h"
-
+#include "config.h"
 
 #include "drunkcan.h"
 
@@ -39,6 +39,7 @@ main(int argc, char **argv)
 {
 	struct drunk_config conf;
 	char sock[IF_NAMESIZE];
+	const char *prot;
 	char prefix[11];
 	int opt, err;
 
@@ -47,18 +48,23 @@ main(int argc, char **argv)
 	strcpy(conf.prefix, "/tmp/");
 	memset(prefix, 0, 11);
 
-	conf.prot.protocol = CANOPEN;
+	prot = protocols[0].prefix;
+	conf.prot = protocols[0].getconf();
 	while ((opt = getopt(argc, argv, "d:s:p:x:ht")) != -1) {
 		switch(opt) {
 		case 's':
 			strcpy(sock, optarg);
 			break;
 		case 'p': /* Protocol */
-			if (strcasecmp("canopen", optarg) == 0) {
-				conf.prot.protocol = CANOPEN;
-			} else {
-				die("Protocol %s not supported", optarg);
+			struct config *p;
+			for (p = protocols; p < (&protocols)[1]; p++) {
+				if (strcmp(p->name, optarg) == 0) {
+					prot = p->prefix;
+					conf.prot = p->getconf();
+					break;
+				}
 			}
+			die("Unknown protocol");
 			break;
 		case 'd':
 			strcpy(conf.prefix, optarg);
@@ -79,15 +85,7 @@ main(int argc, char **argv)
 	strcat(conf.prefix, prefix);
 	strcat(conf.prefix, sock);
 	conf.sock = sock;
-	switch (conf.prot.protocol) { /* TODO: Handle the getopt */
-	case CANOPEN:
-		strcat(conf.prefix, "_CANopen");
-		conf.prot = canopen_protocol();
-		break;
-	default: /* Should not reach */
-		die("Unknown protocol: %d\n", conf.prot);
-		break;
-	}
+	strcat(conf.prefix, prot);
 
 
 
