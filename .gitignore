@@ -13,3 +13,5 @@ libdrunkcan.so
 test/btree
 test/queue
 test/intarray
+tags
+cscope*
