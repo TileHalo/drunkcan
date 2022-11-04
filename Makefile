@@ -2,7 +2,6 @@
 .POSIX:
 
 include config.mk
-include test.mk
 
 all: $(NAME)
 .PHONY: test debug clean dist install all softclean
@@ -11,6 +10,16 @@ SEDREP := sed -e 's/^\(.*\)\.o:/\1.d \1.o:/'
 
 SRC = src/util.c src/protocol.c src/canopen.c src/drunkcan.c src/workqueue.c
 OBJ = ${SRC:.c=.o}
+
+include test.mk
+ifeq ($(COVERAGE),1)
+CFLAGS+=-DUNIT_TESTING -fprofile-arcs -ftest-coverage
+LDLIBS+=--coverage
+endif
+
+$(TEST): CFLAGS+=-g -DUNIT_TESTING
+$(TEST): % : %.o
+$(TEST): LDLIBS+=-lcmocka
 
 
 include $(OBJ:.o=.d)
