@@ -133,6 +133,7 @@ set_epoll(int sock, int efd, int events)
 
 
 	if (set_nonblock(sock) == -1) {
+		warn("Socket %d", sock);
 		warn("Error while setting nonblock:");
 		return -1;
 	}
@@ -173,7 +174,10 @@ process_conn(SocketMap map, int fd, int efd)
 {
 	int conn;
 
-	conn = accept(fd, NULL, NULL);
+	if ((conn = accept(fd, NULL, NULL)) < 0) {
+		warn("Cannot accept on filedescriptor:");
+		return -1;
+	}
 	if (set_epoll(conn, efd, 0) < 0) {
 		return -1;
 	}
@@ -238,7 +242,9 @@ process_can(SocketMap map, int fd, int efd)
 	prot = socketmap_protocol(map);
 	data = NULL; /* Otherwise process_can complains */
 	while ((res = read(fd, &fr, sizeof(fr))) > 0) {
-		id = prot->get_id(fr.can_id);
+		if ((id = prot->validate_can(fr, prot->state)) < 0) {
+			return -1;
+		}
 		if (!(q = socketmap_find_by_id(map, id))) {
 			char sock[UNIX_NAMESIZE + 11];
 			int conn;
@@ -256,14 +262,14 @@ process_can(SocketMap map, int fd, int efd)
 		res = prot->process_can(fr, data, prot->state);
 		if (res > 0) {
 			if(queue_enque(q, data) < 0) {
-				return -1;
+				return -1; /* Should not happen */
 			}
 		} else if (res < 0) {
-			return -1;
+			break;
 		}
 	}
 
-	return res == EAGAIN ? 0 : -1;
+	return res == EAGAIN ? 0 : -res;
 }
 
 static int
@@ -383,7 +389,7 @@ event_loop(struct drunk_config conf)
 	efd = set_epoll(sfd, efd, 0);
 
 	for (;;) {
-		nfds = epoll_wait(efd, events, MAX_EVENTS, -1);
+		nfds = epoll_wait(efd, events, MAX_EVENTS, 200);
 		if (nfds < 0) {
 			goto cleanup;
 		}
@@ -395,6 +401,11 @@ event_loop(struct drunk_config conf)
 			} else if (res < 0) {
 				die("Please fix this, died on event loop\n");
 			}
+		}
+		if (conf.prot.update(conf.prot.state) < 0) {
+			warn("Problem during protocol update:");
+			res = -1;
+			goto cleanup;
 		}
 		if (socketmap_flush(map) < 0) {
 			warn("Problem during flush:");

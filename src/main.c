@@ -38,6 +38,7 @@ int
 main(int argc, char **argv)
 {
 	struct drunk_config conf;
+	struct config *p;
 	char sock[IF_NAMESIZE];
 	const char *prot;
 	char prefix[11];
@@ -56,7 +57,6 @@ main(int argc, char **argv)
 			strcpy(sock, optarg);
 			break;
 		case 'p': /* Protocol */
-			struct config *p;
 			for (p = protocols; p < (&protocols)[1]; p++) {
 				if (strcmp(p->name, optarg) == 0) {
 					prot = p->prefix;

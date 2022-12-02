@@ -217,9 +217,17 @@ socketmap_add(SocketMap map, unsigned int data_size, int fd, int id)
 Queue
 socketmap_add_can(SocketMap map, unsigned int data_size, int fd)
 {
+	Queue q;
 	map->can = fd;
 
-	return socketmap_add(map, data_size, fd, 0);
+	if (!(q = socketmap_add(map, data_size, fd, 0))) {
+		return NULL;
+	}
+	*(q->listen) = 0;
+	if (map->protocol.give_queue(q, map->protocol.state) < 0) {
+		return NULL;
+	}
+	return q;
 }
 
 int
@@ -286,12 +294,14 @@ socketmap_flush(SocketMap map)
 				if (res < 0) {
 					break;
 				}
-				free(queue_deque(q));
+				queue_deque(q);
+				// free(queue_deque(q));
 			}
 			if (res < 0 && errno == EAGAIN) {
 				map->list[i].writable = 0;
 			} else if (res < 0) {
-				warn("Problem writing to file descriptor %d:", fd);
+				warn("Problem writing to file descriptor %d:",
+				     fd);
 			}
 		}
 	}
